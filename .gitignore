@@ -1,0 +1,24 @@
+# Virtual environment
+venv/
+.env/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Node
+node_modules/
+.next/
+
+# OS
+.DS_Store
+
+# Large files
+*.zip
+*.pt
+*.onnx
+*.h5
+*.ckpt
+
+# Loggs
+*.log

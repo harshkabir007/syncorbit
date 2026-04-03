@@ -1,0 +1,350 @@
+{% extends "core/base.html" %}
+{% block title %}Dashboard | SyncOrbit{% endblock %}
+
+{% block content %}
+
+<h1 class="page-title">Mission Control Dashboard</h1>
+
+<!-- ===============================
+     MODE SWITCH
+================================ -->
+<div class="card mode-card">
+    <h3>🎛 Data Source Mode</h3>
+    <div class="mode-buttons">
+        <button class="btn demo" onclick="setMode('DEMO')">🧪 Demo</button>
+        <button class="btn real" onclick="setMode('REAL')">📡 RTL-SDR</button>
+    </div>
+    <p class="muted">Active Mode: <b id="active-mode">—</b></p>
+</div>
+
+<!-- ===============================
+     STATUS CARDS
+================================ -->
+<div class="grid-4">
+
+    <div class="card green">
+        <h4>🟢 Current Satellite</h4>
+        <p>Name: <span id="current-name">—</span></p>
+        <p>RSSI: <span id="current-rssi">—</span> dB</p>
+        <p>Elevation: <span id="current-elev">—</span>°</p>
+    </div>
+
+    <div class="card yellow">
+        <h4>🟡 Candidate Satellite</h4>
+        <p>Name: <span id="candidate-name">—</span></p>
+        <p>RSSI: <span id="candidate-rssi">—</span> dB</p>
+        <p>Elevation: <span id="candidate-elev">—</span>°</p>
+    </div>
+
+    <div class="card purple">
+        <h4>Handover Status</h4>
+        <p id="decision">—</p>
+    </div>
+
+    <div class="card cyan">
+        <h4>Handover Confidence</h4>
+        <p><span id="confidence">—</span>%</p>
+        <div class="confidence-bar">
+            <div id="confidence-fill"></div>
+        </div>
+    </div>
+
+</div>
+
+<!-- ===============================
+     SIGNAL GRAPHS
+================================ -->
+<div class="grid-2">
+
+    <div class="card">
+        <h3>📡 RSSI vs Time</h3>
+        <canvas id="rssiChart" height="180"></canvas>
+    </div>
+
+    <div class="card">
+        <h3>🛰️ Elevation vs Time</h3>
+        <canvas id="elevChart" height="180"></canvas>
+    </div>
+
+</div>
+
+<!-- ===============================
+     WATERFALL
+================================ -->
+<div class="card">
+    <h3>Radio Frequency Waterfall (Frequency vs Time)</h3>
+    <canvas id="waterfall" width="1024" height="240"></canvas>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+/* ===============================
+   DATA BUFFERS
+================================ */
+let timeLabels = [];
+let currentRssiData = [];
+let candidateRssiData = [];
+let currentElevData = [];
+let candidateElevData = [];
+
+/* ===============================
+   COMMON CHART OPTIONS
+================================ */
+const commonChartOptions = {
+    animation: false,
+    plugins: {
+        legend: {
+            labels: {
+                color: "#e5e7eb",
+                font: { size: 13, weight: "600" }
+            }
+        }
+    },
+    scales: {
+        x: {
+            ticks: { color: "#cbd5e1" },
+            grid: { color: "rgba(255,255,255,0.08)" }
+        }
+    }
+};
+
+/* ===============================
+   RSSI CHART
+================================ */
+const rssiChart = new Chart(
+    document.getElementById("rssiChart"),
+    {
+        type: "line",
+        data: {
+            labels: timeLabels,
+            datasets: [
+                {
+                    label: "Current RSSI (dB)",
+                    data: currentRssiData,
+                    borderColor: "#22ff88",
+                    backgroundColor: "rgba(34,255,136,0.2)",
+                    borderWidth: 3,
+                    pointRadius: 3,
+                    tension: 0.4,
+                    fill: true
+                },
+                {
+                    label: "Candidate RSSI (dB)",
+                    data: candidateRssiData,
+                    borderColor: "#ffd400",
+                    backgroundColor: "rgba(255,212,0,0.2)",
+                    borderWidth: 3,
+                    pointRadius: 3,
+                    tension: 0.4,
+                    fill: true
+                }
+            ]
+        },
+        options: {
+            ...commonChartOptions,
+            scales: {
+                ...commonChartOptions.scales,
+                y: {
+                    suggestedMin: -80,
+                    suggestedMax: -50,
+                    ticks: { color: "#e5e7eb" },
+                    grid: { color: "rgba(255,255,255,0.12)" }
+                }
+            }
+        }
+    }
+);
+
+/* ===============================
+   ELEVATION CHART
+================================ */
+const elevChart = new Chart(
+    document.getElementById("elevChart"),
+    {
+        type: "line",
+        data: {
+            labels: timeLabels,
+            datasets: [
+                {
+                    label: "Current Elevation (°)",
+                    data: currentElevData,
+                    borderColor: "#38bdf8",
+                    backgroundColor: "rgba(56,189,248,0.2)",
+                    borderWidth: 3,
+                    pointRadius: 3,
+                    tension: 0.4,
+                    fill: true
+                },
+                {
+                    label: "Candidate Elevation (°)",
+                    data: candidateElevData,
+                    borderColor: "#a855f7",
+                    backgroundColor: "rgba(168,85,247,0.2)",
+                    borderWidth: 3,
+                    pointRadius: 3,
+                    tension: 0.4,
+                    fill: true
+                }
+            ]
+        },
+        options: {
+            ...commonChartOptions,
+            scales: {
+                ...commonChartOptions.scales,
+                y: {
+                    suggestedMin: 30,
+                    suggestedMax: 80,
+                    ticks: { color: "#e5e7eb" },
+                    grid: { color: "rgba(255,255,255,0.12)" }
+                }
+            }
+        }
+    }
+);
+
+/* ===============================
+   WATERFALL
+================================ */
+const wfCanvas = document.getElementById("waterfall");
+const wfCtx = wfCanvas.getContext("2d");
+const FFT_SIZE = wfCanvas.width;
+const WF_ROWS = wfCanvas.height;
+
+let waterfall = Array.from({ length: WF_ROWS }, () =>
+    Array(FFT_SIZE).fill(-100)
+);
+
+function normalize(db) {
+    return Math.max(0, Math.min(1, (db + 100) / 60));
+}
+
+function colorMap(db) {
+    const v = normalize(db);
+    return [255 * v, 180 * v, 255 * (1 - v), 255];
+}
+
+function drawWaterfall() {
+    const img = wfCtx.createImageData(FFT_SIZE, WF_ROWS);
+    for (let y = 0; y < WF_ROWS; y++) {
+        for (let x = 0; x < FFT_SIZE; x++) {
+            const [r, g, b, a] = colorMap(waterfall[y][x]);
+            const i = (y * FFT_SIZE + x) * 4;
+            img.data[i] = r;
+            img.data[i + 1] = g;
+            img.data[i + 2] = b;
+            img.data[i + 3] = a;
+        }
+    }
+    wfCtx.putImageData(img, 0, 0);
+}
+
+/* ===============================
+   DASHBOARD UPDATE
+================================ */
+function updateDashboard() {
+
+    fetch("/api/satellite-state/")
+        .then(r => r.json())
+        .then(data => {
+            if (!data || !data.satellites) return;
+
+            document.getElementById("decision").innerText = data.decision ?? "—";
+
+            let rawConf = data.confidence ?? 0;
+            if (rawConf > 1) rawConf /= 100;
+            rawConf = Math.max(0, Math.min(1, rawConf));
+
+            const conf = Math.round(rawConf * 100);
+            document.getElementById("confidence").innerText = conf;
+            document.getElementById("confidence-fill").style.width = conf + "%";
+
+            const current = data.satellites.find(s => s.role === "current");
+            const candidate = data.satellites.find(s => s.role === "candidate");
+
+            if (current) {
+                document.getElementById("current-name").innerText = current.name;
+                document.getElementById("current-rssi").innerText = current.rssi_db;
+                document.getElementById("current-elev").innerText = current.elevation;
+            }
+
+            if (candidate) {
+                document.getElementById("candidate-name").innerText = candidate.name;
+                document.getElementById("candidate-rssi").innerText = candidate.rssi_db;
+                document.getElementById("candidate-elev").innerText = candidate.elevation;
+            }
+
+            timeLabels.push(new Date().toLocaleTimeString());
+            currentRssiData.push(current?.rssi_db ?? null);
+            candidateRssiData.push(candidate?.rssi_db ?? null);
+            currentElevData.push(current?.elevation ?? null);
+            candidateElevData.push(candidate?.elevation ?? null);
+
+            if (timeLabels.length > 30) {
+                timeLabels.shift();
+                currentRssiData.shift();
+                candidateRssiData.shift();
+                currentElevData.shift();
+                candidateElevData.shift();
+            }
+
+            rssiChart.update();
+            elevChart.update();
+        });
+
+    fetch("/api/waterfall/")
+        .then(r => r.json())
+        .then(d => {
+            if (Array.isArray(d.spectrum)) {
+                waterfall.unshift(d.spectrum.slice(0, FFT_SIZE));
+                waterfall.pop();
+                drawWaterfall();
+            }
+        });
+
+    fetch("/api/buffer-status/")
+        .then(r => r.json())
+        .then(d => {
+            document.getElementById("active-mode").innerText = d.mode;
+        });
+}
+
+function setMode(mode) {
+    fetch(`/api/set-mode/?mode=${mode}`)
+        .then(r => r.json())
+        .then(d => {
+            document.getElementById("active-mode").innerText = d.mode;
+        });
+}
+
+updateDashboard();
+setInterval(updateDashboard, 2000);
+</script>
+
+<style>
+.page-title{text-align:center;margin:20px 0}
+.grid-4{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:20px}
+.grid-2{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:20px}
+.card{
+    background:#0b1220;
+    border:1px solid #1e293b;
+    border-radius:14px;
+    padding:16px;
+    margin-bottom:20px;
+}
+.green{border-color:#22c55e}
+.yellow{border-color:#facc15}
+.purple{border-color:#a855f7}
+.cyan{border-color:#38bdf8}
+.mode-card{max-width:420px;margin:auto}
+.mode-buttons{display:flex;gap:10px;margin-top:10px}
+.muted{opacity:.8}
+.confidence-bar{height:10px;background:#1e293b;border-radius:6px}
+#confidence-fill{height:100%;width:0;background:linear-gradient(90deg,#22c55e,#facc15,#ef4444)}
+.btn{padding:8px 14px;border-radius:999px;font-weight:600;border:none}
+.btn.demo{background:#2563eb;color:white}
+.btn.real{background:#16a34a;color:white}
+canvas{filter:drop-shadow(0 0 6px rgba(56,189,248,0.25))}
+</style>
+
+{% endblock %}

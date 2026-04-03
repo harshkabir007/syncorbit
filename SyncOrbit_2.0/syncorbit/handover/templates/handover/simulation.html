@@ -1,0 +1,369 @@
+{% extends "core/base.html" %}
+{% block title %}Handover Simulation | SyncOrbit{% endblock %}
+
+{% block content %}
+<style>
+    .simulation-container {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+    }
+
+    .simulation-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .status-badge {
+        padding: 8px 16px;
+        border-radius: 20px;
+        font-weight: bold;
+        text-transform: uppercase;
+    }
+
+    .status-idle { background: #475569; color: white; }
+    .status-active { background: #22c55e; color: white; animation: pulse 2s infinite; }
+    .status-buffering { background: #eab308; color: black; animation: pulse 1.5s infinite; }
+
+    @keyframes pulse {
+        0% { opacity: 1; }
+        50% { opacity: 0.7; }
+        100% { opacity: 1; }
+    }
+
+    .handover-diagram {
+        background: #1e293b;
+        padding: 40px;
+        border-radius: 12px;
+        display: flex;
+        justify-content: space-around;
+        align-items: center;
+        position: relative;
+        min-height: 300px;
+    }
+
+    .node {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+        z-index: 2;
+    }
+
+    .node-icon {
+        font-size: 3rem;
+        background: #0f172a;
+        width: 80px;
+        height: 80px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        border: 2px solid #38bdf8;
+        transition: all 0.3s ease;
+    }
+
+    .node-active .node-icon {
+        border-color: #22c55e;
+        box-shadow: 0 0 20px rgba(34, 197, 94, 0.4);
+    }
+
+    .node-candidate .node-icon {
+        border-color: #eab308;
+    }
+
+    .connection-line {
+        position: absolute;
+        top: 50%;
+        height: 4px;
+        background: #334155;
+        z-index: 1;
+        transform-origin: left center;
+    }
+
+    .signal-packet {
+        position: absolute;
+        width: 12px;
+        height: 12px;
+        background: #38bdf8;
+        border-radius: 50%;
+        z-index: 3;
+    }
+
+    .buffer-visualization {
+        background: #1e293b;
+        padding: 20px;
+        border-radius: 12px;
+    }
+
+    .buffer-queue {
+        display: flex;
+        gap: 5px;
+        height: 40px;
+        background: #0f172a;
+        padding: 10px;
+        border-radius: 6px;
+        overflow-x: auto;
+        align-items: center;
+    }
+
+    .packet-block {
+        width: 20px;
+        height: 20px;
+        background: #eab308;
+        border-radius: 3px;
+        flex-shrink: 0;
+        animation: slide-in 0.3s ease-out;
+    }
+
+    @keyframes slide-in {
+        from { transform: translateX(20px); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 20px;
+    }
+
+    .stat-card {
+        background: #1e293b;
+        padding: 20px;
+        border-radius: 12px;
+        border-left: 4px solid #38bdf8;
+    }
+
+    .controls {
+        display: flex;
+        gap: 10px;
+        margin-top: 20px;
+    }
+
+    .btn {
+        padding: 10px 20px;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: bold;
+        transition: all 0.2s;
+    }
+
+    .btn-primary { background: #38bdf8; color: #0f172a; }
+    .btn-danger { background: #ef4444; color: white; }
+    .btn-warning { background: #eab308; color: black; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+</style>
+
+<div class="simulation-container">
+    <div class="simulation-header">
+        <h1>🛰️ Handover & Buffering Simulation</h1>
+        <div id="handover-status" class="status-badge status-idle">System Idle</div>
+    </div>
+
+    <div class="handover-diagram" id="diagram">
+        <!-- Satellite Node -->
+        <div class="node" id="sat-node" style="position: absolute; top: 20px; left: 50%; transform: translateX(-50%);">
+            <div class="node-icon">🛰️</div>
+            <div id="sat-name">Satellite</div>
+        </div>
+
+        <!-- GS-A Node -->
+        <div class="node node-active" id="gs-a-node" style="position: absolute; bottom: 40px; left: 100px;">
+            <div class="node-icon">📡</div>
+            <div>Ground Station A (Primary)</div>
+            <div id="gs-a-rssi">RSSI: -- dB</div>
+        </div>
+
+        <!-- GS-B Node -->
+        <div class="node" id="gs-b-node" style="position: absolute; bottom: 40px; right: 100px;">
+            <div class="node-icon">📡</div>
+            <div>Ground Station B (Candidate)</div>
+            <div id="gs-b-rssi">RSSI: -- dB</div>
+        </div>
+
+        <!-- Connection Lines (SVG for better control) -->
+        <svg style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1;">
+            <line id="line-a" x1="50%" y1="60" x2="140" y2="220" stroke="#334155" stroke-width="3" stroke-dasharray="5,5" />
+            <line id="line-b" x1="50%" y1="60" x2="calc(100% - 140px)" y2="220" stroke="#334155" stroke-width="3" stroke-dasharray="5,5" />
+        </svg>
+    </div>
+
+    <div class="buffer-visualization">
+        <h3>📦 GS-B Packet Buffer</h3>
+        <div class="buffer-queue" id="buffer-queue">
+            <!-- Packets will appear here -->
+        </div>
+        <p class="muted" style="margin-top: 10px;">Buffer Size: <span id="buffer-count">0</span> packets</p>
+    </div>
+
+    <div class="stats-grid">
+        <div class="stat-card">
+            <h4>Current Active</h4>
+            <div id="active-sat-name" style="font-size: 1.5rem; font-weight: bold; color: #22c55e;">--</div>
+        </div>
+        <div class="stat-card" style="border-left-color: #eab308;">
+            <h4>ML Confidence</h4>
+            <div id="ml-confidence" style="font-size: 1.5rem; font-weight: bold; color: #eab308;">--%</div>
+        </div>
+        <div class="stat-card" style="border-left-color: #ef4444;">
+            <h4>Handover Decision</h4>
+            <div id="decision-text" style="font-size: 1.1rem; font-weight: bold;">--</div>
+        </div>
+    </div>
+
+    <div class="controls">
+        <button class="btn btn-warning" onclick="triggerHandover('start')" id="btn-start">Manual Start Handover</button>
+        <button class="btn btn-primary" onclick="triggerHandover('end')" id="btn-end" disabled>Manual End & Replay</button>
+        <button class="btn btn-danger" onclick="toggleAutoSim()" id="btn-auto">Enable Auto-Sim</button>
+    </div>
+</div>
+
+<script>
+    let isAutoSim = false;
+    let autoSimInterval = null;
+    let packetSimInterval = null;
+
+    async function updateState() {
+        try {
+            const response = await fetch('/api/satellite-state/');
+            const data = await response.json();
+
+            const current = data.satellites.find(s => s.role === 'current');
+            const candidate = data.satellites.find(s => s.role === 'candidate');
+
+            // Update UI
+            if (current) {
+                document.getElementById('sat-name').innerText = current.name;
+                document.getElementById('active-sat-name').innerText = current.name;
+                document.getElementById('gs-a-rssi').innerText = `RSSI: ${current.rssi_db} dB`;
+                document.getElementById('gs-a-node').classList.add('node-active');
+            } else {
+                document.getElementById('gs-a-node').classList.remove('node-active');
+            }
+
+            if (candidate) {
+                document.getElementById('gs-b-rssi').innerText = `RSSI: ${candidate.rssi_db} dB`;
+                document.getElementById('gs-b-node').classList.add('node-candidate');
+            } else {
+                document.getElementById('gs-b-node').classList.remove('node-candidate');
+            }
+
+            document.getElementById('ml-confidence').innerText = `${data.confidence}%`;
+            document.getElementById('decision-text').innerText = data.decision;
+            document.getElementById('buffer-count').innerText = data.buffer_size;
+
+            // Update Status Badge
+            const statusBadge = document.getElementById('handover-status');
+            if (data.handover_active) {
+                statusBadge.innerText = "Handover In Progress";
+                statusBadge.className = "status-badge status-buffering";
+                document.getElementById('btn-start').disabled = true;
+                document.getElementById('btn-end').disabled = false;
+                
+                // Update lines
+                document.getElementById('line-a').setAttribute('stroke', '#ef4444');
+                document.getElementById('line-b').setAttribute('stroke', '#eab308');
+                document.getElementById('line-b').setAttribute('stroke-dasharray', '0');
+            } else {
+                statusBadge.innerText = "System Active";
+                statusBadge.className = "status-badge status-active";
+                document.getElementById('btn-start').disabled = false;
+                document.getElementById('btn-end').disabled = true;
+
+                document.getElementById('line-a').setAttribute('stroke', '#22c55e');
+                document.getElementById('line-a').setAttribute('stroke-dasharray', '0');
+                document.getElementById('line-b').setAttribute('stroke', '#334155');
+                document.getElementById('line-b').setAttribute('stroke-dasharray', '5,5');
+            }
+
+            // Sync buffer visualization
+            const bufferQueue = document.getElementById('buffer-queue');
+            const currentBlocks = bufferQueue.children.length;
+            if (data.buffer_size > currentBlocks) {
+                for (let i = 0; i < data.buffer_size - currentBlocks; i++) {
+                    const block = document.createElement('div');
+                    block.className = 'packet-block';
+                    bufferQueue.appendChild(block);
+                }
+            } else if (data.buffer_size === 0) {
+                bufferQueue.innerHTML = '';
+            }
+
+        } catch (err) {
+            console.error("Failed to update state:", err);
+        }
+    }
+
+    async function triggerHandover(action) {
+        const response = await fetch(`/api/handover/?action=${action}`);
+        const data = await response.json();
+        console.log("Handover action:", action, data);
+        updateState();
+    }
+
+    async function simulatePacket() {
+        try {
+            const response = await fetch('/api/simulate-packet/');
+            const data = await response.json();
+            
+            // Create a visual packet animation
+            createPacketAnimation(data.status === 'buffered' ? 'B' : 'A');
+            
+            if (data.status === 'buffered') {
+                updateState();
+            }
+        } catch (err) {
+            console.error("Packet simulation failed:", err);
+        }
+    }
+
+    function createPacketAnimation(target) {
+        const diagram = document.getElementById('diagram');
+        const packet = document.createElement('div');
+        packet.className = 'signal-packet';
+        diagram.appendChild(packet);
+
+        const startX = diagram.offsetWidth / 2;
+        const startY = 60;
+        
+        const endX = target === 'A' ? 140 : (diagram.offsetWidth - 140);
+        const endY = diagram.offsetHeight - 80;
+
+        packet.style.left = startX + 'px';
+        packet.style.top = startY + 'px';
+
+        const animation = packet.animate([
+            { left: startX + 'px', top: startY + 'px', opacity: 1 },
+            { left: endX + 'px', top: endY + 'px', opacity: 0 }
+        ], {
+            duration: 800,
+            easing: 'linear'
+        });
+
+        animation.onfinish = () => packet.remove();
+    }
+
+    function toggleAutoSim() {
+        isAutoSim = !isAutoSim;
+        const btn = document.getElementById('btn-auto');
+        
+        if (isAutoSim) {
+            btn.innerText = "Disable Auto-Sim";
+            btn.className = "btn btn-primary";
+            autoSimInterval = setInterval(updateState, 1000);
+            packetSimInterval = setInterval(simulatePacket, 300);
+        } else {
+            btn.innerText = "Enable Auto-Sim";
+            btn.className = "btn btn-danger";
+            clearInterval(autoSimInterval);
+            clearInterval(packetSimInterval);
+        }
+    }
+
+    // Initial update and poll
+    updateState();
+    setInterval(updateState, 1000);
+</script>
+{% endblock %}
