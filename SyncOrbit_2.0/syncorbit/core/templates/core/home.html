@@ -1,276 +1,668 @@
 {% extends "core/base.html" %}
-{% block title %}SyncOrbit | Mission Control AI{% endblock %}
+{% block title %}SyncOrbit — Predictive Satellite Handover AI{% endblock %}
 
 {% block content %}
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
-<script src="https://unpkg.com/lucide@latest"></script>
-
-<div class="app-container">
-    <!-- ⭐ STAR BACKGROUND -->
-    <canvas id="starfield"></canvas>
-    <div class="scanner-line"></div>
-    <div class="ui-grid"></div>
-
-    <!-- NAVBAR -->
-    <nav class="glass-nav">
-        <div class="nav-content">
-            <div class="brand-group">
-                <div class="pulse-indicator"></div>
-                <span class="brand-text">SYNC<span class="accent">ORBIT</span></span>
-            </div>
-
-            <div class="nav-links">
-                <a href="{% url 'dashboard' %}" class="link">Dashboard</a>
-                <a href="{% url 'satellite_map' %}" class="link">Orbital Map</a>
-                
-                <a href="/admin/" class="btn-admin">
-                    <i data-lucide="shield-check"></i> Admin
-                </a>
-            </div>
-        </div>
-    </nav>
-
-    <!-- HERO -->
-    <header class="hero">
-        <div class="hero-layout">
-            <div class="hero-text animate-in">
-                <div class="status-tag">
-                    <span class="status-dot"></span>
-                    AI ENGINE: OPERATIONAL [99.8% ACCURACY]
-                </div>
-
-                <h1>
-                    Autonomous<br>
-                    <span class="gradient-text">Handover Intelligence</span>
-                </h1>
-
-                <p>
-                    Proprietary ML-gating for LEO/MEO constellations.
-                    Predictive orbital geometry for zero-loss handovers.
-                </p>
-
-                <div class="hero-actions">
-                    <a href="{% url 'dashboard' %}" class="btn-primary">
-                        Initialize Control Dash
-                        <i data-lucide="chevron-right"></i>
-                    </a>
-                    <button class="btn-ghost">View Whitepaper</button>
-                </div>
-            </div>
-
-            <!-- TERMINAL MOCK -->
-            <div class="hero-visual animate-in-delay">
-                <div class="terminal-window">
-                    <div class="terminal-header">
-                        <div class="dots"><span></span><span></span><span></span></div>
-                        <div class="terminal-title">satellite_engine.py</div>
-                    </div>
-                    <div class="terminal-body">
-                        <p class="log-info">> Fetching Starlink TLEs…</p>
-                        <p class="log-warn">> RSSI drop detected</p>
-                        <p class="log-success">> ML handover executed</p>
-                        <p class="log-info">> Doppler shift: −4.2 kHz</p>
-                        <p class="log-success">> Packet loss: 0.00%</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </header>
-</div>
-
-<!-- ================= STYLES ================= -->
 <style>
-:root {
-    --bg: #030712;
-    --accent: #22d3ee;
-    --accent-dim: rgba(34,211,238,0.15);
-    --glass-border: rgba(255,255,255,0.06);
-    --surface: rgba(15,23,42,0.7);
+/* Override container max width for hero full-width feel */
+.container { max-width: 1280px; }
+
+/* ── Animated starfield canvas ── */
+#stars-canvas {
+  position: fixed;
+  inset: 0; z-index: -1;
+  pointer-events: none;
 }
 
-body {
-    background: var(--bg);
-    color: #f8fafc;
-    margin: 0;
-    font-family: 'Plus Jakarta Sans', sans-serif;
-}
-
-/* ⭐ STAR CANVAS */
-#starfield {
-    position: fixed;
-    inset: 0;
-    z-index: -30;
-    background: radial-gradient(circle at bottom, #020617, #000);
-}
-
-/* GRID + SCANNER */
-.ui-grid {
-    position: fixed;
-    inset: 0;
-    z-index: -20;
-    background-image:
-        linear-gradient(var(--glass-border) 1px, transparent 1px),
-        linear-gradient(90deg, var(--glass-border) 1px, transparent 1px);
-    background-size: 60px 60px;
-    opacity: 0.2;
-}
-
-.scanner-line {
-    position: fixed;
-    width: 100%;
-    height: 2px;
-    background: linear-gradient(90deg, transparent, var(--accent), transparent);
-    animation: scan 8s linear infinite;
-    opacity: 0.15;
-    z-index: -10;
-}
-
-@keyframes scan {
-    from { transform: translateY(-100vh); }
-    to { transform: translateY(100vh); }
-}
-
-/* NAVBAR */
-.glass-nav {
-    position: fixed;
-    top: 0;
-    width: 100%;
-    background: rgba(3,7,18,0.85);
-    backdrop-filter: blur(16px);
-    border-bottom: 1px solid var(--glass-border);
-    z-index: 100;
-}
-
-.nav-content {
-    max-width: 1400px;
-    margin: auto;
-    padding: 0 40px;
-    height: 80px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.brand-text {
-    font-weight: 800;
-    font-size: 1.4rem;
-}
-
-.accent { color: var(--accent); }
-
-/* HERO */
+/* ── HERO ────────────────────────────────────── */
 .hero {
-    padding: 160px 40px;
-    max-width: 1400px;
-    margin: auto;
+  padding: 60px 0 80px;
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: 60px;
+  align-items: center;
 }
 
-.hero-layout {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 80px;
+@media(max-width:900px){ .hero{grid-template-columns:1fr; gap:40px;} }
+
+.hero-tag {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: rgba(34,211,238,.1);
+  border: 1px solid rgba(34,211,238,.25);
+  border-radius: 20px;
+  padding: 5px 14px;
+  font-size: .75rem;
+  font-weight: 700;
+  color: #22d3ee;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  margin-bottom: 20px;
 }
 
-h1 {
-    font-size: 4.5rem;
-    font-weight: 800;
+.hero-tag .tag-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: #22d3ee;
+  animation: pulse-dot 2s infinite;
 }
 
-.gradient-text {
-    background: linear-gradient(to right, #fff, var(--accent));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
+@keyframes pulse-dot {
+  0%,100%{box-shadow:0 0 0 0 rgba(34,211,238,.5)}
+  50%    {box-shadow:0 0 0 5px rgba(34,211,238,0)}
 }
 
-/* TERMINAL */
-.terminal-window {
-    background: #000;
-    border: 1px solid var(--glass-border);
-    border-radius: 14px;
-    box-shadow: 0 40px 80px rgba(0,0,0,0.6);
+.hero h1 {
+  font-size: clamp(2.6rem, 5vw, 4rem);
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -.03em;
+  margin-bottom: 20px;
 }
 
-.terminal-header {
-    background: #1e293b;
-    padding: 10px 14px;
-    display: flex;
-    gap: 12px;
+.hero-gradient {
+  background: linear-gradient(135deg, #22d3ee 0%, #818cf8 50%, #22c55e 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
-.dots span {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    display: inline-block;
+.hero-sub {
+  font-size: 1.05rem;
+  color: #94a3b8;
+  line-height: 1.7;
+  margin-bottom: 32px;
+  max-width: 520px;
 }
 
-.dots span:nth-child(1){background:#ef4444;}
-.dots span:nth-child(2){background:#fbbf24;}
-.dots span:nth-child(3){background:#10b981;}
+.hero-cta {
+  display: flex; gap: 14px; flex-wrap: wrap; align-items: center;
+}
+
+.btn-hero-primary {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: linear-gradient(135deg, #0ea5e9, #6366f1);
+  color: #fff;
+  padding: 13px 28px;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: .95rem;
+  text-decoration: none;
+  transition: all .25s;
+  box-shadow: 0 0 30px rgba(14,165,233,.25);
+}
+
+.btn-hero-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 40px rgba(14,165,233,.4);
+}
+
+.btn-hero-ghost {
+  display: inline-flex; align-items: center; gap: 8px;
+  color: #94a3b8;
+  background: rgba(255,255,255,.05);
+  border: 1px solid rgba(255,255,255,.1);
+  padding: 13px 24px;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: .9rem;
+  text-decoration: none;
+  transition: all .25s;
+}
+
+.btn-hero-ghost:hover {
+  color: #fff;
+  background: rgba(255,255,255,.09);
+  border-color: rgba(255,255,255,.2);
+}
+
+/* Live stats strip */
+.hero-stats {
+  display: flex;
+  gap: 24px;
+  margin-top: 36px;
+  flex-wrap: wrap;
+}
+
+.hero-stat {
+  display: flex; flex-direction: column; gap: 2px;
+}
+
+.hs-val {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: #f1f5f9;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.hs-val.c  { color: #22c55e; }
+.hs-val.a  { color: #f59e0b; }
+.hs-val.p  { color: #a78bfa; }
+
+.hs-lbl {
+  font-size: .7rem;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  font-weight: 600;
+}
+
+/* ── TERMINAL CARD (right side of hero) ── */
+.terminal-card {
+  background: #050d1a;
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 40px 80px rgba(0,0,0,.5), 0 0 0 1px rgba(34,211,238,.05);
+}
+
+.terminal-bar {
+  background: #0f172a;
+  padding: 11px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+}
+
+.t-dots { display: flex; gap: 6px; }
+.t-dots span { width:11px; height:11px; border-radius:50%; display:inline-block; }
+.t-dots span:nth-child(1){background:#ef4444}
+.t-dots span:nth-child(2){background:#fbbf24}
+.t-dots span:nth-child(3){background:#10b981}
+
+.t-title {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .78rem;
+  color: #475569;
+}
 
 .terminal-body {
-    padding: 20px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.85rem;
+  padding: 20px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .82rem;
+  line-height: 1.9;
+  min-height: 240px;
 }
 
-/* MOBILE */
-@media (max-width: 1024px) {
-    .hero-layout { grid-template-columns: 1fr; }
-    h1 { font-size: 3rem; }
+.t-prompt { color: #22c55e; }
+.t-info   { color: #38bdf8; }
+.t-warn   { color: #f59e0b; }
+.t-ok     { color: #22c55e; }
+.t-dim    { color: #475569; }
+.t-val    { color: #a78bfa; }
+
+.blink-cursor {
+  display: inline-block;
+  width: 8px; height: 14px;
+  background: #22d3ee;
+  vertical-align: middle;
+  animation: blink 1s step-end infinite;
 }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+/* Signal strength mini bar in terminal */
+.t-bar-row { display: flex; gap: 4px; align-items: center; margin-top: 4px; }
+.t-bar-seg {
+  height: 8px; width: 18px;
+  border-radius: 2px;
+  background: #1e293b;
+}
+.t-bar-seg.on { background: #22c55e; }
+.t-bar-seg.warn { background: #f59e0b; }
+
+/* ── SECTION HEADER ── */
+.sec-head {
+  text-align: center;
+  padding: 60px 0 40px;
+}
+.sec-head .sec-tag {
+  display: inline-block;
+  background: rgba(167,139,250,.1);
+  border: 1px solid rgba(167,139,250,.2);
+  color: #a78bfa;
+  border-radius: 20px;
+  padding: 4px 14px;
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  margin-bottom: 14px;
+}
+.sec-head h2 {
+  font-size: clamp(1.6rem, 3vw, 2.4rem);
+  font-weight: 800;
+  letter-spacing: -.02em;
+  margin-bottom: 10px;
+}
+.sec-head p { color: #94a3b8; font-size: .95rem; max-width: 520px; margin: 0 auto; }
+
+/* ── FEATURE CARDS ── */
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+  margin-bottom: 60px;
+}
+@media(max-width:900px){ .features-grid{ grid-template-columns:1fr; } }
+
+.feat-card {
+  background: rgba(15,23,42,.7);
+  border: 1px solid rgba(255,255,255,.07);
+  border-radius: 14px;
+  padding: 28px 24px;
+  position: relative;
+  overflow: hidden;
+  transition: border-color .3s, transform .25s;
+}
+.feat-card:hover {
+  border-color: rgba(34,211,238,.2);
+  transform: translateY(-3px);
+}
+.feat-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  border-radius: 14px 14px 0 0;
+}
+.feat-card.c1::before { background: linear-gradient(90deg,#22d3ee,transparent); }
+.feat-card.c2::before { background: linear-gradient(90deg,#a78bfa,transparent); }
+.feat-card.c3::before { background: linear-gradient(90deg,#22c55e,transparent); }
+.feat-card.c4::before { background: linear-gradient(90deg,#f59e0b,transparent); }
+.feat-card.c5::before { background: linear-gradient(90deg,#f87171,transparent); }
+.feat-card.c6::before { background: linear-gradient(90deg,#38bdf8,transparent); }
+
+.feat-icon {
+  font-size: 2rem;
+  margin-bottom: 14px;
+  display: block;
+}
+.feat-card h3 {
+  font-size: 1rem;
+  font-weight: 700;
+  margin-bottom: 8px;
+  color: #f1f5f9;
+}
+.feat-card p { font-size: .85rem; color: #64748b; line-height: 1.6; }
+
+/* ── HOW IT WORKS ── */
+.how-steps {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0;
+  position: relative;
+  margin-bottom: 60px;
+}
+@media(max-width:900px){ .how-steps{ grid-template-columns:1fr; gap:18px; } }
+
+.how-step {
+  text-align: center;
+  padding: 24px 16px;
+  position: relative;
+}
+
+.how-step::after {
+  content: '→';
+  position: absolute;
+  right: -12px; top: 50%;
+  transform: translateY(-50%);
+  color: #334155;
+  font-size: 1.4rem;
+}
+.how-step:last-child::after { display: none; }
+@media(max-width:900px){.how-step::after{display:none;}}
+
+.how-num {
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  background: rgba(15,23,42,.9);
+  border: 2px solid #334155;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 800;
+  font-size: .9rem;
+  margin: 0 auto 12px;
+  color: #22d3ee;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.how-step.active-step .how-num {
+  border-color: #22d3ee;
+  box-shadow: 0 0 16px rgba(34,211,238,.3);
+}
+
+.how-step h4 { font-size: .85rem; font-weight: 700; color: #e2e8f0; margin-bottom: 6px; text-transform: none; letter-spacing: 0; }
+.how-step p  { font-size: .75rem; color: #64748b; line-height: 1.5; }
+
+/* ── LIVE METRICS STRIP ── */
+.metrics-strip {
+  display: grid;
+  grid-template-columns: repeat(4,1fr);
+  gap: 14px;
+  margin-bottom: 60px;
+}
+@media(max-width:900px){ .metrics-strip{ grid-template-columns:repeat(2,1fr); }}
+
+.metric-tile {
+  background: rgba(15,23,42,.8);
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 12px;
+  padding: 20px;
+  text-align: center;
+  transition: border-color .3s;
+}
+.metric-tile:hover { border-color: rgba(34,211,238,.2); }
+
+.mt-val {
+  font-size: 2rem;
+  font-weight: 800;
+  font-family: 'JetBrains Mono', monospace;
+  margin-bottom: 4px;
+}
+.mt-label { font-size: .72rem; color: #64748b; text-transform: uppercase; letter-spacing: .08em; font-weight: 600; }
+.mt-sub   { font-size: .75rem; color: #475569; margin-top: 4px; }
+
+/* ── TECH STACK ── */
+.tech-stack {
+  display: flex; gap: 10px; flex-wrap: wrap; justify-content: center;
+  margin-bottom: 60px;
+}
+.tech-badge {
+  display: flex; align-items: center; gap: 8px;
+  background: rgba(15,23,42,.9);
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-size: .8rem;
+  font-weight: 600;
+  color: #94a3b8;
+  transition: all .2s;
+}
+.tech-badge:hover { color: #e2e8f0; border-color: rgba(255,255,255,.15); }
+.tech-badge .tb-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 </style>
 
-<!-- ================= STAR ENGINE ================= -->
+<!-- Animated stars -->
+<canvas id="stars-canvas"></canvas>
+
+<!-- ═══════════════════════
+     HERO
+═══════════════════════ -->
+<section class="hero">
+  <div class="hero-left">
+    <div class="hero-tag">
+      <div class="tag-dot"></div>
+      AI Engine Operational — 99.8% Accuracy
+    </div>
+
+    <h1>
+      Predictive<br>
+      <span class="hero-gradient">Satellite Handover</span><br>
+      Intelligence
+    </h1>
+
+    <p class="hero-sub">
+      SyncOrbit eliminates packet loss during LEO satellite handovers using a
+      dual-model ML pipeline — Logistic Regression selects the optimal candidate,
+      LSTM predicts the ideal switching moment from real CelesTrak TLE data.
+    </p>
+
+    <div class="hero-cta">
+      <a href="/dashboard/" class="btn-hero-primary">
+        📊 Open Mission Control
+      </a>
+      <a href="/simulation/" class="btn-hero-ghost">
+        🎬 Watch Live Demo
+      </a>
+    </div>
+
+    <div class="hero-stats">
+      <div class="hero-stat">
+        <span class="hs-val c" id="h-loss">0.00%</span>
+        <span class="hs-lbl">Packet Loss</span>
+      </div>
+      <div class="hero-stat">
+        <span class="hs-val a" id="h-sats">—</span>
+        <span class="hs-lbl">Visible Satellites</span>
+      </div>
+      <div class="hero-stat">
+        <span class="hs-val p" id="h-conf">—</span>
+        <span class="hs-lbl">LSTM Confidence</span>
+      </div>
+      <div class="hero-stat">
+        <span class="hs-val" id="h-decision" style="color:#f1f5f9;font-size:1rem;margin-top:4px;">—</span>
+        <span class="hs-lbl">ML Decision</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Terminal card -->
+  <div class="hero-right">
+    <div class="terminal-card">
+      <div class="terminal-bar">
+        <div class="t-dots"><span></span><span></span><span></span></div>
+        <span class="t-title">satellite_engine.py — live</span>
+      </div>
+      <div class="terminal-body" id="term-body">
+        <div><span class="t-prompt">$ </span><span class="t-info">Connecting to CelesTrak TLE feed…</span></div>
+        <div><span class="t-prompt">$ </span><span class="t-ok">✓ Loaded 6,847 satellites</span></div>
+        <div><span class="t-prompt">$ </span><span class="t-info">Building diverse LEO pool…</span></div>
+        <div id="t-curr-line"><span class="t-prompt">$ </span><span class="t-dim">Identifying current satellite…</span></div>
+        <div id="t-cand-line"><span class="t-prompt">$ </span><span class="t-dim">Scanning candidates…</span></div>
+        <div id="t-conf-line"><span class="t-prompt">$ </span><span class="t-dim">LSTM confidence: —</span></div>
+        <div id="t-dec-line" ><span class="t-prompt">$ </span><span class="t-dim">Decision: —</span></div>
+        <div><span class="t-prompt">$ </span><span class="blink-cursor"></span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════
+     LIVE METRICS
+═══════════════════════ -->
+<div class="metrics-strip">
+  <div class="metric-tile">
+    <div class="mt-val" style="color:#22c55e;" id="m-saved">0</div>
+    <div class="mt-label">Packets Saved</div>
+    <div class="mt-sub">SyncOrbit buffer replayed</div>
+  </div>
+  <div class="metric-tile">
+    <div class="mt-val" style="color:#f87171;" id="m-dropped">0</div>
+    <div class="mt-label">Legacy Dropped</div>
+    <div class="mt-sub">Reactive system failures</div>
+  </div>
+  <div class="metric-tile">
+    <div class="mt-val" style="color:#22d3ee;" id="m-sats2">—</div>
+    <div class="mt-label">Satellites In View</div>
+    <div class="mt-sub">Real TLE visibility window</div>
+  </div>
+  <div class="metric-tile">
+    <div class="mt-val" style="color:#a78bfa;" id="m-buf">0</div>
+    <div class="mt-label">Buffer Depth</div>
+    <div class="mt-sub">Packets during handover</div>
+  </div>
+</div>
+
+<!-- ═══════════════════════
+     HOW IT WORKS
+═══════════════════════ -->
+<div class="sec-head">
+  <div class="sec-tag">📐 Architecture</div>
+  <h2>How SyncOrbit Works</h2>
+  <p>A 5-stage autonomous pipeline from raw TLE to zero-loss handover</p>
+</div>
+
+<div class="how-steps">
+  <div class="how-step active-step">
+    <div class="how-num">01</div>
+    <h4>TLE Ingestion</h4>
+    <p>Fetches live Keplerian elements from CelesTrak every few seconds via Skyfield</p>
+  </div>
+  <div class="how-step">
+    <div class="how-num">02</div>
+    <h4>Visibility Scan</h4>
+    <p>Computes elevation + azimuth for all LEO sats relative to ground station in New Delhi</p>
+  </div>
+  <div class="how-step">
+    <div class="how-num">03</div>
+    <h4>LogReg Selector</h4>
+    <p>Logistic Regression scores every candidate on RSSI + elevation → picks the best target</p>
+  </div>
+  <div class="how-step">
+    <div class="how-num">04</div>
+    <h4>LSTM Gating</h4>
+    <p>10-frame sliding window fed to LSTM → confidence score. Fires when &ge; 40%</p>
+  </div>
+  <div class="how-step">
+    <div class="how-num">05</div>
+    <h4>Zero-Loss Switch</h4>
+    <p>Buffer absorbs packets. New link established. Buffer replayed. 0% packet loss</p>
+  </div>
+</div>
+
+<!-- ═══════════════════════
+     FEATURES
+═══════════════════════ -->
+<div class="sec-head">
+  <div class="sec-tag">✨ Capabilities</div>
+  <h2>What Makes SyncOrbit Different</h2>
+  <p>Purpose-built for LEO constellation handover with a production-grade ML backbone</p>
+</div>
+
+<div class="features-grid">
+  <div class="feat-card c1">
+    <span class="feat-icon">🤖</span>
+    <h3>Dual-Model ML Pipeline</h3>
+    <p>Logistic Regression for candidate ranking + LSTM for timing prediction. Two models, one seamless decision.</p>
+  </div>
+  <div class="feat-card c2">
+    <span class="feat-icon">📡</span>
+    <h3>Real TLE Data</h3>
+    <p>Live Keplerian element ingestion from CelesTrak. Actual satellite physics, not simulated approximations.</p>
+  </div>
+  <div class="feat-card c3">
+    <span class="feat-icon">📦</span>
+    <h3>Zero Packet Loss</h3>
+    <p>Ground Station B buffer absorbs all in-flight packets during the handover window and replays after switch.</p>
+  </div>
+  <div class="feat-card c4">
+    <span class="feat-icon">⚡</span>
+    <h3>Predictive — Not Reactive</h3>
+    <p>LSTM fires before signal degrades. Legacy systems wait until RSSI drops below threshold — too late.</p>
+  </div>
+  <div class="feat-card c5">
+    <span class="feat-icon">🌍</span>
+    <h3>Live Orbital Map</h3>
+    <p>Leaflet.js map showing all visible satellites in real-time: current (green), candidate (yellow), available (blue).</p>
+  </div>
+  <div class="feat-card c6">
+    <span class="feat-icon">📊</span>
+    <h3>Mission Control Dashboard</h3>
+    <p>RSSI/Elevation charts, RF waterfall, event log, SyncOrbit vs Legacy comparison — live, every 3 seconds.</p>
+  </div>
+</div>
+
+<!-- ═══════════════════════
+     TECH STACK
+═══════════════════════ -->
+<div class="sec-head">
+  <div class="sec-tag">🔧 Tech Stack</div>
+  <h2>Built On Real Technology</h2>
+</div>
+
+<div class="tech-stack">
+  <div class="tech-badge"><div class="tb-dot" style="background:#3b82f6;"></div>Python 3.11</div>
+  <div class="tech-badge"><div class="tb-dot" style="background:#22c55e;"></div>Django 4.2</div>
+  <div class="tech-badge"><div class="tb-dot" style="background:#f59e0b;"></div>TensorFlow / Keras</div>
+  <div class="tech-badge"><div class="tb-dot" style="background:#a78bfa;"></div>scikit-learn</div>
+  <div class="tech-badge"><div class="tb-dot" style="background:#22d3ee;"></div>Skyfield</div>
+  <div class="tech-badge"><div class="tb-dot" style="background:#f87171;"></div>CelesTrak TLE</div>
+  <div class="tech-badge"><div class="tb-dot" style="background:#38bdf8;"></div>Chart.js</div>
+  <div class="tech-badge"><div class="tb-dot" style="background:#4ade80;"></div>Leaflet.js</div>
+  <div class="tech-badge"><div class="tb-dot" style="background:#fb923c;"></div>joblib</div>
+  <div class="tech-badge"><div class="tb-dot" style="background:#c084fc;"></div>NumPy</div>
+  <div class="tech-badge"><div class="tb-dot" style="background:#34d399;"></div>REST API</div>
+  <div class="tech-badge"><div class="tb-dot" style="background:#e2e8f0;"></div>DEMO / RTL-SDR Modes</div>
+</div>
+
+<!-- ═══════════════════════
+     STAR ENGINE
+═══════════════════════ -->
 <script>
-lucide.createIcons();
-
-const canvas = document.getElementById("starfield");
-const ctx = canvas.getContext("2d");
-
+const sc = document.getElementById('stars-canvas');
+const sx = sc.getContext('2d');
 let stars = [];
-const STAR_COUNT = 500;
 
-function resize() {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
+function rsz(){ sc.width=window.innerWidth; sc.height=window.innerHeight; }
+rsz(); window.addEventListener('resize', rsz);
+
+function initS(){
+  stars = Array.from({length:350}, () => ({
+    x: Math.random() * sc.width,
+    y: Math.random() * sc.height,
+    r: Math.random() * 1.5 + 0.3,
+    v: Math.random() * 0.12 + 0.03,
+    a: Math.random() * 0.5 + 0.2,
+  }));
 }
-window.addEventListener("resize", resize);
-resize();
+initS();
 
-function initStars() {
-    stars = [];
-    for (let i = 0; i < STAR_COUNT; i++) {
-        stars.push({
-            x: Math.random() * canvas.width,
-            y: Math.random() * canvas.height,
-            r: Math.random() * 1.5 + 0.4,
-            v: Math.random() * 0.2 + 0.05,
-            a: Math.random() * 0.6 + 0.3
-        });
+function drawS(){
+  sx.clearRect(0,0,sc.width,sc.height);
+  for(const s of stars){
+    sx.globalAlpha = s.a;
+    sx.beginPath();
+    sx.arc(s.x, s.y, s.r, 0, Math.PI*2);
+    sx.fillStyle = '#fff';
+    sx.fill();
+    s.y += s.v;
+    if(s.y > sc.height){ s.y=0; s.x=Math.random()*sc.width; }
+  }
+  sx.globalAlpha = 1;
+  requestAnimationFrame(drawS);
+}
+drawS();
+
+// ── API live feed ──────────────────────────
+async function pollAPI(){
+  try {
+    const d = await fetch('/api/satellite-state/').then(r=>r.json());
+    const curr = d.satellites?.find(s=>s.role==='current');
+    const cand = d.satellites?.find(s=>s.role==='candidate');
+
+    const conf = parseFloat(d.confidence);
+    document.getElementById('h-sats').textContent = d.satellites?.length ?? '—';
+    document.getElementById('h-conf').textContent = isNaN(conf) ? '—' : conf.toFixed(1)+'%';
+    document.getElementById('h-decision').textContent = d.decision ?? '—';
+    document.getElementById('m-sats2').textContent = d.satellites?.length ?? '—';
+    document.getElementById('m-buf').textContent = d.buffer_size ?? 0;
+
+    // Terminal live lines
+    if(curr){
+      document.getElementById('t-curr-line').innerHTML =
+        `<span class="t-prompt">$ </span><span class="t-ok">Active: ${curr.name} (${curr.elevation}° | ${curr.rssi_db} dB)</span>`;
     }
-}
-initStars();
-
-function draw() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = "#ffffff";
-
-    for (const s of stars) {
-        ctx.globalAlpha = s.a;
-        ctx.beginPath();
-        ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
-        ctx.fill();
-
-        s.y += s.v;
-        if (s.y > canvas.height) {
-            s.y = 0;
-            s.x = Math.random() * canvas.width;
-        }
+    if(cand){
+      document.getElementById('t-cand-line').innerHTML =
+        `<span class="t-prompt">$ </span><span class="t-warn">Candidate: ${cand.name} (${cand.elevation}° | ${cand.rssi_db} dB)</span>`;
     }
-    requestAnimationFrame(draw);
+    document.getElementById('t-conf-line').innerHTML =
+      `<span class="t-prompt">$ </span><span class="t-val">LSTM confidence: ${isNaN(conf)?'—':conf.toFixed(2)+'%'}</span>`;
+
+    const dec = d.decision ?? '—';
+    const decCol = dec==='HANDOVER_STARTED'?'t-warn':dec==='HANDOVER_COMPLETED'?'t-ok':'t-dim';
+    document.getElementById('t-dec-line').innerHTML =
+      `<span class="t-prompt">$ </span><span class="${decCol}">Decision: ${dec}</span>`;
+  } catch{}
+
+  // Packet stats
+  try {
+    const ps = await fetch('/api/packet-stats/').then(r=>r.json()).catch(()=>null);
+    if(ps){
+      document.getElementById('m-saved').textContent   = ps.packets_saved   ?? 0;
+      document.getElementById('m-dropped').textContent = ps.legacy_dropped  ?? 0;
+    }
+  } catch{}
 }
-draw();
+
+pollAPI();
+setInterval(pollAPI, 3000);
 </script>
-
 {% endblock %}

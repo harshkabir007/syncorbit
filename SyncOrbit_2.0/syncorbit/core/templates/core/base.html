@@ -1,70 +1,412 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>{% block title %}SyncOrbit{% endblock %}</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="SyncOrbit — AI-powered predictive satellite handover system. Zero packet loss, real TLE data, LSTM + LogReg dual-ML pipeline.">
+  <title>{% block title %}SyncOrbit{% endblock %}</title>
 
-    <style>
-        body {
-            margin: 0;
-            font-family: Arial, Helvetica, sans-serif;
-            background-color: #0f172a;
-            color: #e5e7eb;
-        }
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 
-        /* Navbar */
-        .navbar {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 14px 24px;
-            background: #020617;
-            border-bottom: 1px solid #1e293b;
-        }
+  <style>
+  /* ═══════════════════════════════════════════════
+     DESIGN TOKENS
+  ═══════════════════════════════════════════════ */
+  :root {
+    --bg:           #030712;
+    --bg2:          #0b1223;
+    --surface:      rgba(15,23,42,0.75);
+    --surface2:     #1e293b;
+    --border:       rgba(255,255,255,0.07);
+    --border-hi:    rgba(56,189,248,0.25);
 
-        .navbar h2 {
-            margin: 0;
-            color: #38bdf8;
-        }
+    --cyan:         #22d3ee;
+    --cyan-dim:     rgba(34,211,238,0.12);
+    --green:        #22c55e;
+    --green-dim:    rgba(34,197,94,0.12);
+    --amber:        #f59e0b;
+    --amber-dim:    rgba(245,158,11,0.12);
+    --purple:       #a78bfa;
+    --purple-dim:   rgba(167,139,250,0.12);
+    --red:          #f87171;
 
-        .nav-links a {
-            margin-left: 20px;
-            text-decoration: none;
-            color: #cbd5f5;
-            font-weight: 500;
-        }
+    --text:         #f1f5f9;
+    --text-2:       #94a3b8;
+    --text-3:       #475569;
 
-        .nav-links a:hover {
-            color: #38bdf8;
-        }
+    --radius:       12px;
+    --radius-sm:    8px;
+    --nav-h:        64px;
+  }
 
-        /* Page container */
-        .container {
-            padding: 30px;
-        }
+  /* ═══════════════════════════════════════════════
+     RESET + BASE
+  ═══════════════════════════════════════════════ */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-        .sat-glow {
-            filter: drop-shadow(0 0 6px rgba(56, 189, 248, 0.9));
-        }
-    </style>
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    line-height: 1.6;
+    /* subtle grid background */
+    background-image:
+      linear-gradient(var(--border) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 48px 48px;
+    background-attachment: fixed;
+  }
+
+  /* ═══════════════════════════════════════════════
+     NAVBAR
+  ═══════════════════════════════════════════════ */
+  .navbar {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 1000;
+    height: var(--nav-h);
+    background: rgba(3,7,18,0.88);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 32px;
+  }
+
+  /* Top accent line */
+  .navbar::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent 0%, var(--cyan) 50%, transparent 100%);
+    opacity: 0.7;
+  }
+
+  /* Brand */
+  .nav-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-decoration: none;
+  }
+
+  .nav-brand-icon {
+    width: 32px; height: 32px;
+    background: var(--cyan-dim);
+    border: 1px solid rgba(34,211,238,0.3);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1rem;
+  }
+
+  .nav-brand-text {
+    font-size: 1.1rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: #fff;
+  }
+
+  .nav-brand-text span {
+    background: linear-gradient(90deg, var(--cyan), #818cf8);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  /* Live indicator */
+  .nav-live {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: .72rem;
+    font-weight: 600;
+    color: var(--green);
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: .04em;
+  }
+
+  .live-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--green);
+    animation: pulse-dot 2s infinite;
+  }
+
+  @keyframes pulse-dot {
+    0%,100%{box-shadow:0 0 0 0 rgba(34,197,94,.5)}
+    50%    {box-shadow:0 0 0 6px rgba(34,197,94,0)}
+  }
+
+  /* Nav links */
+  .nav-links {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .nav-links a {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    border-radius: var(--radius-sm);
+    font-size: .875rem;
+    font-weight: 500;
+    color: var(--text-2);
+    text-decoration: none;
+    transition: color .2s, background .2s;
+  }
+
+  .nav-links a:hover {
+    color: #fff;
+    background: rgba(255,255,255,.06);
+  }
+
+  .nav-links a.active {
+    color: var(--cyan);
+    background: var(--cyan-dim);
+    border: 1px solid rgba(34,211,238,.15);
+  }
+
+  .nav-links a .nav-icon { font-size: .95rem; }
+
+  /* Nav satellite count badge */
+  .nav-sat-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    font-size: .72rem;
+    font-weight: 600;
+    color: var(--text-2);
+    font-family: 'JetBrains Mono', monospace;
+    margin-left: 8px;
+  }
+
+  .nav-sat-badge .sat-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--amber);
+    animation: pulse-dot 1.5s infinite;
+  }
+
+  /* ═══════════════════════════════════════════════
+     PAGE CONTAINER
+  ═══════════════════════════════════════════════ */
+  .container {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: calc(var(--nav-h) + 28px) 28px 48px;
+  }
+
+  /* ═══════════════════════════════════════════════
+     SHARED CARD SYSTEM
+  ═══════════════════════════════════════════════ */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px 22px;
+    backdrop-filter: blur(12px);
+    transition: border-color .25s, box-shadow .25s;
+  }
+
+  .card:hover { border-color: var(--border-hi); }
+
+  .card.green   { border-left: 3px solid var(--green);  }
+  .card.yellow  { border-left: 3px solid var(--amber);  }
+  .card.purple  { border-left: 3px solid var(--purple); }
+  .card.cyan    { border-left: 3px solid var(--cyan);   }
+  .card.red     { border-left: 3px solid var(--red);    }
+
+  /* Grids */
+  .grid-2 { display: grid; grid-template-columns: repeat(2,1fr); gap: 16px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; }
+  .grid-4 { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; }
+
+  @media(max-width:1024px){ .grid-4{ grid-template-columns:repeat(2,1fr); } }
+  @media(max-width:768px) { .grid-2,.grid-3,.grid-4{ grid-template-columns:1fr; } }
+
+  /* ═══════════════════════════════════════════════
+     TYPOGRAPHY HELPERS
+  ═══════════════════════════════════════════════ */
+  h1 { font-size: 1.8rem; font-weight: 700; letter-spacing: -.02em; }
+  h2 { font-size: 1.4rem; font-weight: 700; letter-spacing: -.01em; }
+  h3 { font-size: 1.1rem; font-weight: 600; }
+  h4 { font-size: .9rem;  font-weight: 600; color: var(--text-2); text-transform: uppercase; letter-spacing: .05em; }
+
+  .page-title {
+    font-size: 1.6rem;
+    font-weight: 800;
+    letter-spacing: -.02em;
+    margin-bottom: 22px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .muted    { color: var(--text-2); font-size: .875rem; }
+  .muted-sm { color: var(--text-3); font-size: .78rem;  }
+  .mono     { font-family: 'JetBrains Mono', monospace; }
+
+  .tag {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: var(--cyan-dim);
+    color: var(--cyan);
+    border: 1px solid rgba(34,211,238,.2);
+    border-radius: 20px;
+    padding: 3px 12px;
+    font-size: .72rem;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+  }
+
+  /* ═══════════════════════════════════════════════
+     BUTTON SYSTEM
+  ═══════════════════════════════════════════════ */
+  .btn {
+    padding: 9px 20px;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-weight: 600;
+    font-size: .875rem;
+    cursor: pointer;
+    transition: all .2s;
+    font-family: inherit;
+  }
+  .btn:disabled { opacity: .4; cursor: not-allowed; }
+  .btn.demo    { background: var(--cyan-dim);   color: var(--cyan);   border: 1px solid rgba(34,211,238,.25); }
+  .btn.real    { background: var(--green-dim);  color: var(--green);  border: 1px solid rgba(34,197,94,.25) ; }
+  .btn.danger  { background: rgba(248,113,113,.15); color: var(--red); border: 1px solid rgba(248,113,113,.2); }
+
+  /* ═══════════════════════════════════════════════
+     SCROLLBAR
+  ═══════════════════════════════════════════════ */
+  ::-webkit-scrollbar       { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: #0b1223; }
+  ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+  /* ═══════════════════════════════════════════════
+     FOOTER
+  ═══════════════════════════════════════════════ */
+  .site-footer {
+    border-top: 1px solid var(--border);
+    padding: 20px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    font-size: .78rem;
+    color: var(--text-3);
+  }
+
+  .footer-badges { display: flex; gap: 8px; flex-wrap: wrap; }
+  .footer-badge {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-size: .7rem;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--text-3);
+  }
+  </style>
 </head>
-
 <body>
 
-    <div class="navbar">
-        <h2>🛰️ SyncOrbit</h2>
-        <div class="nav-links">
-            <a href="/">Home</a>
-            <a href="/dashboard/">Dashboard</a>
-            <a href="/map/">Satellite Map</a>
-            <a href="/simulation/">Simulation</a>
-        </div>
-    </div>
+<!-- ═══════════════════════════════════════════
+     NAVBAR
+═══════════════════════════════════════════ -->
+<nav class="navbar">
+  <a href="/" class="nav-brand">
+    <div class="nav-brand-icon">🛰</div>
+    <span class="nav-brand-text">Sync<span>Orbit</span></span>
+  </a>
 
-    <div class="container">
-        {% block content %}
-        {% endblock %}
+  <div style="display:flex;align-items:center;gap:6px;">
+    <div class="nav-live">
+      <div class="live-dot"></div>
+      LIVE
     </div>
+    <div class="nav-sat-badge">
+      <div class="sat-dot"></div>
+      <span id="nav-sat-count">—</span> satellites
+    </div>
+  </div>
+
+  <div class="nav-links">
+    <a href="/" class="nav-link" id="nav-home">
+      <span class="nav-icon">🏠</span> Home
+    </a>
+    <a href="/dashboard/" class="nav-link" id="nav-dash">
+      <span class="nav-icon">📊</span> Dashboard
+    </a>
+    <a href="/map/" class="nav-link" id="nav-map">
+      <span class="nav-icon">🗺️</span> Satellite Map
+    </a>
+    <a href="/simulation/" class="nav-link" id="nav-sim">
+      <span class="nav-icon">🎬</span> Simulation
+    </a>
+  </div>
+</nav>
+
+<!-- ═══════════════════════════════════════════
+     PAGE CONTENT
+═══════════════════════════════════════════ -->
+<div class="container">
+  {% block content %}{% endblock %}
+</div>
+
+<!-- ═══════════════════════════════════════════
+     FOOTER
+═══════════════════════════════════════════ -->
+<footer class="site-footer">
+  <div>© 2026 SyncOrbit — Predictive Satellite Handover Intelligence</div>
+  <div class="footer-badges">
+    <span class="footer-badge">Python 3.11</span>
+    <span class="footer-badge">Django 4.2</span>
+    <span class="footer-badge">Skyfield</span>
+    <span class="footer-badge">TensorFlow</span>
+    <span class="footer-badge">scikit-learn</span>
+    <span class="footer-badge">CelesTrak TLE</span>
+    <span class="footer-badge">Chart.js</span>
+    <span class="footer-badge">Leaflet.js</span>
+  </div>
+</footer>
+
+<script>
+// Active nav link
+(function(){
+  const path = window.location.pathname;
+  const map = { '/': 'nav-home', '/dashboard/': 'nav-dash', '/map/': 'nav-map', '/simulation/': 'nav-sim' };
+  const id = map[path] || Object.entries(map).find(([k]) => path.startsWith(k) && k !== '/')?.[1];
+  if (id) document.getElementById(id)?.classList.add('active');
+})();
+
+// Live satellite count in nav
+(async function loop(){
+  try {
+    const d = await fetch('/api/satellite-state/').then(r=>r.json());
+    const el = document.getElementById('nav-sat-count');
+    if(el && d.satellites) el.textContent = d.satellites.length;
+  } catch{}
+  setTimeout(loop, 5000);
+})();
+</script>
 
 </body>
 </html>

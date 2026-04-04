@@ -3,367 +3,671 @@
 
 {% block content %}
 <style>
-    .simulation-container {
-        display: flex;
-        flex-direction: column;
-        gap: 20px;
-    }
+body { background:#050d1a; }
+.sim-page { display:flex; flex-direction:column; gap:18px; }
+.sim-top  { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; }
+.sim-top h1 { margin:0; font-size:1.4rem; }
 
-    .simulation-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }
+/* Status */
+.sbadge { padding:6px 16px; border-radius:20px; font-weight:700; font-size:.78rem; letter-spacing:.06em; text-transform:uppercase; }
+.sb-idle { background:#334155; color:#94a3b8; }
+.sb-active  { background:rgba(34,197,94,.15); color:#22c55e; border:1px solid #22c55e; animation:glow-g 2s infinite; }
+.sb-handover{ background:rgba(245,158,11,.15); color:#f59e0b; border:1px solid #f59e0b; animation:glow-a 1s infinite; }
+@keyframes glow-g { 0%,100%{box-shadow:0 0 6px rgba(34,197,94,.3)} 50%{box-shadow:0 0 14px rgba(34,197,94,.6)} }
+@keyframes glow-a { 0%,100%{box-shadow:0 0 6px rgba(245,158,11,.3)} 50%{box-shadow:0 0 14px rgba(245,158,11,.7)} }
 
-    .status-badge {
-        padding: 8px 16px;
-        border-radius: 20px;
-        font-weight: bold;
-        text-transform: uppercase;
-    }
+/* Canvas */
+#sim-canvas { width:100%; border-radius:14px; display:block;
+              border:1px solid rgba(255,255,255,.07);
+              background:linear-gradient(180deg,#020817 0%,#0b1623 60%,#0f2032 100%); }
 
-    .status-idle { background: #475569; color: white; }
-    .status-active { background: #22c55e; color: white; animation: pulse 2s infinite; }
-    .status-buffering { background: #eab308; color: black; animation: pulse 1.5s infinite; }
+/* Stats row */
+.stats-row { display:grid; grid-template-columns:repeat(auto-fit,minmax(155px,1fr)); gap:12px; }
+.sc { background:#0f172a; border-radius:10px; padding:14px 16px; border-left:3px solid #334155; }
+.sc-lbl { font-size:.7rem; color:#64748b; margin-bottom:4px; }
+.sc-val { font-size:1.2rem; font-weight:700; }
 
-    @keyframes pulse {
-        0% { opacity: 1; }
-        50% { opacity: 0.7; }
-        100% { opacity: 1; }
-    }
+/* Principle steps */
+.principle { background:#0f172a; border-radius:14px; padding:20px 24px;
+             border:1px solid rgba(255,255,255,.07); }
+.principle h3 { margin:0 0 14px; font-size:1rem; color:#38bdf8; }
+.steps { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; }
+.step { background:#1e293b; border-radius:10px; padding:14px; border-left:3px solid #334155;
+        transition:all .4s ease; opacity:.45; }
+.step.active { opacity:1; border-left-color:#38bdf8; box-shadow:0 0 18px rgba(56,189,248,.12); }
+.step.done   { opacity:.8; border-left-color:#22c55e; }
+.step-icon { font-size:1.5rem; margin-bottom:6px; }
+.step-title { font-size:.8rem; font-weight:700; color:#e2e8f0; margin-bottom:3px; }
+.step-desc  { font-size:.72rem; color:#64748b; line-height:1.4; }
 
-    .handover-diagram {
-        background: #1e293b;
-        padding: 40px;
-        border-radius: 12px;
-        display: flex;
-        justify-content: space-around;
-        align-items: center;
-        position: relative;
-        min-height: 300px;
-    }
+/* Confidence bar */
+.conf-bar-wrap { height:6px; background:#1e293b; border-radius:3px; margin-top:6px; overflow:hidden; }
+.conf-bar { height:100%; border-radius:3px; background:linear-gradient(90deg,#38bdf8,#a78bfa);
+            transition:width .5s ease; }
 
-    .node {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 10px;
-        z-index: 2;
-    }
-
-    .node-icon {
-        font-size: 3rem;
-        background: #0f172a;
-        width: 80px;
-        height: 80px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: 50%;
-        border: 2px solid #38bdf8;
-        transition: all 0.3s ease;
-    }
-
-    .node-active .node-icon {
-        border-color: #22c55e;
-        box-shadow: 0 0 20px rgba(34, 197, 94, 0.4);
-    }
-
-    .node-candidate .node-icon {
-        border-color: #eab308;
-    }
-
-    .connection-line {
-        position: absolute;
-        top: 50%;
-        height: 4px;
-        background: #334155;
-        z-index: 1;
-        transform-origin: left center;
-    }
-
-    .signal-packet {
-        position: absolute;
-        width: 12px;
-        height: 12px;
-        background: #38bdf8;
-        border-radius: 50%;
-        z-index: 3;
-    }
-
-    .buffer-visualization {
-        background: #1e293b;
-        padding: 20px;
-        border-radius: 12px;
-    }
-
-    .buffer-queue {
-        display: flex;
-        gap: 5px;
-        height: 40px;
-        background: #0f172a;
-        padding: 10px;
-        border-radius: 6px;
-        overflow-x: auto;
-        align-items: center;
-    }
-
-    .packet-block {
-        width: 20px;
-        height: 20px;
-        background: #eab308;
-        border-radius: 3px;
-        flex-shrink: 0;
-        animation: slide-in 0.3s ease-out;
-    }
-
-    @keyframes slide-in {
-        from { transform: translateX(20px); opacity: 0; }
-        to { transform: translateX(0); opacity: 1; }
-    }
-
-    .stats-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 20px;
-    }
-
-    .stat-card {
-        background: #1e293b;
-        padding: 20px;
-        border-radius: 12px;
-        border-left: 4px solid #38bdf8;
-    }
-
-    .controls {
-        display: flex;
-        gap: 10px;
-        margin-top: 20px;
-    }
-
-    .btn {
-        padding: 10px 20px;
-        border: none;
-        border-radius: 6px;
-        cursor: pointer;
-        font-weight: bold;
-        transition: all 0.2s;
-    }
-
-    .btn-primary { background: #38bdf8; color: #0f172a; }
-    .btn-danger { background: #ef4444; color: white; }
-    .btn-warning { background: #eab308; color: black; }
-    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+/* Controls */
+.controls { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+.btn { padding:9px 18px; border:none; border-radius:8px; font-weight:700;
+       cursor:pointer; font-size:.85rem; transition:.2s; }
+.btn:disabled { opacity:.35; cursor:not-allowed; }
+.btn-warn  { background:#f59e0b; color:#000; }
+.btn-blue  { background:#38bdf8; color:#0f172a; }
+.btn-green { background:#22c55e; color:#fff; }
+.btn-red   { background:#ef4444; color:#fff; }
+.speed-label { font-size:.8rem; color:#64748b; }
 </style>
 
-<div class="simulation-container">
-    <div class="simulation-header">
-        <h1>🛰️ Handover & Buffering Simulation</h1>
-        <div id="handover-status" class="status-badge status-idle">System Idle</div>
+<div class="sim-page">
+
+  <!-- Title -->
+  <div class="sim-top">
+    <h1>🛰️ SyncOrbit — Predictive Handover Simulation</h1>
+    <div id="sbadge" class="sbadge sb-idle">System Idle</div>
+  </div>
+
+  <!-- MAIN CANVAS -->
+  <canvas id="sim-canvas" height="420"></canvas>
+
+  <!-- Stats row -->
+  <div class="stats-row">
+    <div class="sc" style="border-left-color:#22c55e;">
+      <div class="sc-lbl">🟢 Active Satellite</div>
+      <div class="sc-val" id="sc-curr" style="color:#22c55e; font-size:.95rem;">—</div>
+      <div style="font-size:.72rem;color:#64748b;margin-top:3px;">RSSI: <span id="sc-curr-rssi">—</span> | Elev: <span id="sc-curr-elev">—</span>°</div>
     </div>
-
-    <div class="handover-diagram" id="diagram">
-        <!-- Satellite Node -->
-        <div class="node" id="sat-node" style="position: absolute; top: 20px; left: 50%; transform: translateX(-50%);">
-            <div class="node-icon">🛰️</div>
-            <div id="sat-name">Satellite</div>
-        </div>
-
-        <!-- GS-A Node -->
-        <div class="node node-active" id="gs-a-node" style="position: absolute; bottom: 40px; left: 100px;">
-            <div class="node-icon">📡</div>
-            <div>Ground Station A (Primary)</div>
-            <div id="gs-a-rssi">RSSI: -- dB</div>
-        </div>
-
-        <!-- GS-B Node -->
-        <div class="node" id="gs-b-node" style="position: absolute; bottom: 40px; right: 100px;">
-            <div class="node-icon">📡</div>
-            <div>Ground Station B (Candidate)</div>
-            <div id="gs-b-rssi">RSSI: -- dB</div>
-        </div>
-
-        <!-- Connection Lines (SVG for better control) -->
-        <svg style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1;">
-            <line id="line-a" x1="50%" y1="60" x2="140" y2="220" stroke="#334155" stroke-width="3" stroke-dasharray="5,5" />
-            <line id="line-b" x1="50%" y1="60" x2="calc(100% - 140px)" y2="220" stroke="#334155" stroke-width="3" stroke-dasharray="5,5" />
-        </svg>
+    <div class="sc" style="border-left-color:#f59e0b;">
+      <div class="sc-lbl">🟡 Candidate</div>
+      <div class="sc-val" id="sc-cand" style="color:#f59e0b; font-size:.95rem;">—</div>
+      <div style="font-size:.72rem;color:#64748b;margin-top:3px;">RSSI: <span id="sc-cand-rssi">—</span> | Elev: <span id="sc-cand-elev">—</span>°</div>
     </div>
-
-    <div class="buffer-visualization">
-        <h3>📦 GS-B Packet Buffer</h3>
-        <div class="buffer-queue" id="buffer-queue">
-            <!-- Packets will appear here -->
-        </div>
-        <p class="muted" style="margin-top: 10px;">Buffer Size: <span id="buffer-count">0</span> packets</p>
+    <div class="sc" style="border-left-color:#a78bfa;">
+      <div class="sc-lbl">🤖 LSTM Confidence</div>
+      <div class="sc-val" id="sc-conf" style="color:#a78bfa;">0.0 %</div>
+      <div class="conf-bar-wrap"><div class="conf-bar" id="conf-bar" style="width:0%"></div></div>
     </div>
-
-    <div class="stats-grid">
-        <div class="stat-card">
-            <h4>Current Active</h4>
-            <div id="active-sat-name" style="font-size: 1.5rem; font-weight: bold; color: #22c55e;">--</div>
-        </div>
-        <div class="stat-card" style="border-left-color: #eab308;">
-            <h4>ML Confidence</h4>
-            <div id="ml-confidence" style="font-size: 1.5rem; font-weight: bold; color: #eab308;">--%</div>
-        </div>
-        <div class="stat-card" style="border-left-color: #ef4444;">
-            <h4>Handover Decision</h4>
-            <div id="decision-text" style="font-size: 1.1rem; font-weight: bold;">--</div>
-        </div>
+    <div class="sc" style="border-left-color:#f87171;">
+      <div class="sc-lbl">⚡ ML Decision</div>
+      <div class="sc-val" id="sc-dec" style="font-size:.9rem;">—</div>
     </div>
-
-    <div class="controls">
-        <button class="btn btn-warning" onclick="triggerHandover('start')" id="btn-start">Manual Start Handover</button>
-        <button class="btn btn-primary" onclick="triggerHandover('end')" id="btn-end" disabled>Manual End & Replay</button>
-        <button class="btn btn-danger" onclick="toggleAutoSim()" id="btn-auto">Enable Auto-Sim</button>
+    <div class="sc" style="border-left-color:#34d399;">
+      <div class="sc-lbl">📦 Buffer</div>
+      <div class="sc-val" id="sc-buf" style="color:#34d399;">0 pkts</div>
     </div>
+    <div class="sc" style="border-left-color:#38bdf8;">
+      <div class="sc-lbl">🚀 Packets Saved</div>
+      <div class="sc-val" id="sc-saved" style="color:#38bdf8;">0</div>
+    </div>
+  </div>
+
+  <!-- Working Principle Steps -->
+  <div class="principle">
+    <h3>⚙️ How SyncOrbit Works — Live Step-by-Step</h3>
+    <div class="steps">
+      <div class="step" id="step-1">
+        <div class="step-icon">📡</div>
+        <div class="step-title">1. Signal Monitoring</div>
+        <div class="step-desc">Skyfield polls real TLE data every tick. RSSI & elevation computed for all visible LEO satellites.</div>
+      </div>
+      <div class="step" id="step-2">
+        <div class="step-icon">🧠</div>
+        <div class="step-title">2. Logistic Regression</div>
+        <div class="step-desc">LogReg scores every candidate in one snapshot (4 features). Highest score → becomes the Candidate.</div>
+      </div>
+      <div class="step" id="step-3">
+        <div class="step-icon">📊</div>
+        <div class="step-title">3. LSTM Window</div>
+        <div class="step-desc">10-frame sliding window fed to LSTM. It detects the signal crossover trend before it peaks.</div>
+      </div>
+      <div class="step" id="step-4">
+        <div class="step-icon">⚡</div>
+        <div class="step-title">4. Handover Triggered</div>
+        <div class="step-desc">When LSTM confidence ≥ 40 %, handover starts. Buffer absorbs all in-flight packets instantly.</div>
+      </div>
+      <div class="step" id="step-5">
+        <div class="step-icon">✅</div>
+        <div class="step-title">5. Zero-Loss Switch</div>
+        <div class="step-desc">New satellite link established. Buffer replays queued packets. Legacy system would have dropped them all.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div class="controls">
+    <button class="btn btn-green" id="btn-play" onclick="toggleSim()">▶ Start Simulation</button>
+    <button class="btn btn-warn"  id="btn-ho"   onclick="forceHandover()" disabled>⚡ Force Handover</button>
+    <button class="btn btn-blue"  onclick="resetSim()">↺ Reset</button>
+    <span class="speed-label">Speed:</span>
+    <input type="range" id="speed-range" min="0.5" max="4" step="0.5" value="1"
+           oninput="simSpeed=parseFloat(this.value); document.getElementById('speed-val').textContent=this.value+'×'">
+    <span id="speed-val" class="speed-label">1×</span>
+  </div>
+
 </div>
 
 <script>
-    let isAutoSim = false;
-    let autoSimInterval = null;
-    let packetSimInterval = null;
+// ═══════════════════════════════════════════════════════════
+//  SIMULATION ENGINE
+// ═══════════════════════════════════════════════════════════
+const canvas  = document.getElementById('sim-canvas');
+const ctx     = canvas.getContext('2d');
 
-    async function updateState() {
-        try {
-            const response = await fetch('/api/satellite-state/');
-            const data = await response.json();
+// ── State ──────────────────────────────────────────────────
+let running   = false;
+let simTime   = 0;         // seconds (simulation clock)
+let simSpeed  = 1.0;
+let lastTs    = null;
+let rafId     = null;
 
-            const current = data.satellites.find(s => s.role === 'current');
-            const candidate = data.satellites.find(s => s.role === 'candidate');
+const CYCLE   = 80;        // seconds per full orbital pass cycle
+const HO_TIME = 52;        // handover triggered at this sim-time
+const HO_END  = 58;
 
-            // Update UI
-            if (current) {
-                document.getElementById('sat-name').innerText = current.name;
-                document.getElementById('active-sat-name').innerText = current.name;
-                document.getElementById('gs-a-rssi').innerText = `RSSI: ${current.rssi_db} dB`;
-                document.getElementById('gs-a-node').classList.add('node-active');
-            } else {
-                document.getElementById('gs-a-node').classList.remove('node-active');
+let handoverActive  = false;
+let handoverDone    = false;
+let manualHO        = false;
+
+// Data packets
+let packets   = [];        // {x,y,tx,ty,prog,speed,alpha,type}
+const PKT_RATE = 0.18;     // seconds between packets
+let lastPktTime = 0;
+
+// Forwarding
+let forwardPacketsActive = false;
+let forwardPacketsLeft   = 0;
+let lastFwdTime          = 0;
+
+// Buffer
+let bufferPkts   = 0;
+let packetsSaved = 0;
+
+// API sync
+let apiData = null;
+
+// ── Resize canvas ──────────────────────────────────────────
+function resize() {
+    canvas.width  = canvas.offsetWidth;
+    canvas.height = 420;
+}
+resize();
+window.addEventListener('resize', () => { resize(); });
+
+// ═══════════════════════════════════════════════════════════
+//  SATELLITE MATH
+// ═══════════════════════════════════════════════════════════
+// Satellites move from left to right across the screen
+function getSatA(t) {
+    const p = Math.min(t / CYCLE, 1.0);
+    const W = canvas.width, H = canvas.height;
+    const x = W * (-0.1 + p * 1.2);
+    const y = H * 0.25 - Math.sin(p * Math.PI) * Math.min(H*0.15, 60);
+    const distToCenter = Math.abs(p - 0.5);
+    const elev = Math.max(0, 90 - distToCenter * 180);
+    return {
+        x: x,
+        y: y - 20,
+        elev: elev,
+        rssi: Math.round(-88 + elev * 0.5 + (Math.random() - 0.5) * 3)
+    };
+}
+
+function getSatB(t) {
+    let p = t / CYCLE - 0.3; // Trails Sat A
+    const W = canvas.width, H = canvas.height;
+    const x = W * (-0.1 + p * 1.2);
+    let y = H * 0.35;
+    let elev = 0;
+    if (p >= 0 && p <= 1) {
+       y -= Math.sin(p * Math.PI) * Math.min(H*0.15, 60);
+       const distToCenter = Math.abs(p - 0.5);
+       elev = Math.max(0, 90 - distToCenter * 180);
+    }
+    return {
+        x: x,
+        y: y - 20,
+        elev: Math.max(0, elev),
+        rssi: Math.round(-88 + elev * 0.5 + (Math.random() - 0.5) * 3)
+    };
+}
+
+// ═══════════════════════════════════════════════════════════
+//  DRAW
+// ═══════════════════════════════════════════════════════════
+function draw(satA, satB) {
+    const W = canvas.width, H = canvas.height;
+    ctx.clearRect(0, 0, W, H);
+
+    // ── Starfield ───────────────────────────────────────────
+    if (!draw._stars) {
+        draw._stars = Array.from({length:90}, () => ({
+            x: Math.random(), y: Math.random() * 0.85,
+            r: Math.random() * 1.4 + 0.4,
+            a: Math.random() * 0.7 + 0.3,
+        }));
+    }
+    draw._stars.forEach(s => {
+        ctx.beginPath();
+        ctx.arc(s.x * W, s.y * H, s.r, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255,255,255,${s.a})`;
+        ctx.fill();
+    });
+
+    // ── Ground horizon ──────────────────────────────────────
+    const grad = ctx.createLinearGradient(0, H - 80, 0, H);
+    grad.addColorStop(0, 'rgba(15,32,50,0)')
+    grad.addColorStop(1, 'rgba(8,20,32,1)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, H - 80, W, 80);
+
+    const gs1X = W * 0.3, gs1Y = H - 72;
+    const gs2X = W * 0.7, gs2Y = H - 72;
+
+    // ── Orbit arcs (ghost paths) ────────────────────────────
+    function drawOrbitPath(yBase, col, phaseOffset) {
+        ctx.beginPath();
+        let started = false;
+        for(let t=0; t<=CYCLE; t+=1) {
+            let p = t / CYCLE - phaseOffset;
+            if (p < 0 || p > 1) continue;
+            const px = W * (-0.1 + p * 1.2);
+            const py = yBase - Math.sin(p * Math.PI) * Math.min(H*0.15, 60) - 20;
+            if (!started) { ctx.moveTo(px, py); started = true; }
+            else ctx.lineTo(px, py);
+        }
+        ctx.strokeStyle = col;
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 8]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+    }
+    drawOrbitPath(H*0.25, 'rgba(34,197,94,.18)', 0);      // Sat A path
+    drawOrbitPath(H*0.35, 'rgba(245,158,11,.18)', 0.3);   // Sat B path
+
+    // ── Signal beams ────────────────────────────────────────
+    function drawBeam(x1, y1, x2, y2, col, solid, alpha) {
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.beginPath();
+        ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+        ctx.strokeStyle = col;
+        ctx.lineWidth = solid ? 2.5 : 1.8;
+        ctx.setLineDash(solid ? [0] : [10, 7]);
+        ctx.shadowBlur = solid ? 14 : 0;
+        ctx.shadowColor = col;
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.restore();
+    }
+
+    function drawConnections() {
+        const gs1X = W * 0.3, gs1Y = H - 72;
+        const gs2X = W * 0.7, gs2Y = H - 72;
+        
+        if (!handoverActive && !handoverDone) {
+            // Initial: Sat A connected to GS-A (solid), Sat B to GS-A (dotted)
+            drawBeam(satA.x, satA.y, gs1X, gs1Y, '#22c55e', true,  1.0);
+            drawBeam(satB.x, satB.y, gs1X, gs1Y, '#f59e0b', false, 0.45);
+        } else if (handoverActive && !handoverDone) {
+            // During Handover: Sat A disconnects from GS-A, connects to GS-B temp
+            drawBeam(satA.x, satA.y, gs2X, gs2Y, '#38bdf8', false, 0.8);
+            // Sat B remains candidate for GS-A
+            drawBeam(satB.x, satB.y, gs1X, gs1Y, '#f59e0b', false, 0.6);
+        } else if (handoverDone) {
+            // After handover: Sat B connects to GS-A
+            drawBeam(satB.x, satB.y, gs1X, gs1Y, '#22c55e', true, 1.0);
+            // Ground forwarding link
+            if (forwardPacketsActive) {
+                drawBeam(gs2X, gs2Y, gs1X, gs1Y, '#f59e0b', false, 0.8);
             }
-
-            if (candidate) {
-                document.getElementById('gs-b-rssi').innerText = `RSSI: ${candidate.rssi_db} dB`;
-                document.getElementById('gs-b-node').classList.add('node-candidate');
-            } else {
-                document.getElementById('gs-b-node').classList.remove('node-candidate');
-            }
-
-            document.getElementById('ml-confidence').innerText = `${data.confidence}%`;
-            document.getElementById('decision-text').innerText = data.decision;
-            document.getElementById('buffer-count').innerText = data.buffer_size;
-
-            // Update Status Badge
-            const statusBadge = document.getElementById('handover-status');
-            if (data.handover_active) {
-                statusBadge.innerText = "Handover In Progress";
-                statusBadge.className = "status-badge status-buffering";
-                document.getElementById('btn-start').disabled = true;
-                document.getElementById('btn-end').disabled = false;
-                
-                // Update lines
-                document.getElementById('line-a').setAttribute('stroke', '#ef4444');
-                document.getElementById('line-b').setAttribute('stroke', '#eab308');
-                document.getElementById('line-b').setAttribute('stroke-dasharray', '0');
-            } else {
-                statusBadge.innerText = "System Active";
-                statusBadge.className = "status-badge status-active";
-                document.getElementById('btn-start').disabled = false;
-                document.getElementById('btn-end').disabled = true;
-
-                document.getElementById('line-a').setAttribute('stroke', '#22c55e');
-                document.getElementById('line-a').setAttribute('stroke-dasharray', '0');
-                document.getElementById('line-b').setAttribute('stroke', '#334155');
-                document.getElementById('line-b').setAttribute('stroke-dasharray', '5,5');
-            }
-
-            // Sync buffer visualization
-            const bufferQueue = document.getElementById('buffer-queue');
-            const currentBlocks = bufferQueue.children.length;
-            if (data.buffer_size > currentBlocks) {
-                for (let i = 0; i < data.buffer_size - currentBlocks; i++) {
-                    const block = document.createElement('div');
-                    block.className = 'packet-block';
-                    bufferQueue.appendChild(block);
-                }
-            } else if (data.buffer_size === 0) {
-                bufferQueue.innerHTML = '';
-            }
-
-        } catch (err) {
-            console.error("Failed to update state:", err);
         }
     }
+    drawConnections();
 
-    async function triggerHandover(action) {
-        const response = await fetch(`/api/handover/?action=${action}`);
-        const data = await response.json();
-        console.log("Handover action:", action, data);
-        updateState();
-    }
+    // ── Data packets (animated dots along beam) ─────────────
+    packets.forEach(p => {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, (p.type === 'buffered' || p.type === 'forward') ? 4 : 5, 0, Math.PI * 2);
+        const pCol = (p.type === 'buffered' || p.type === 'forward') ? '#f59e0b' : '#38bdf8';
+        ctx.fillStyle = pCol;
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = pCol;
+        ctx.globalAlpha = p.alpha;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.globalAlpha = 1;
+    });
 
-    async function simulatePacket() {
-        try {
-            const response = await fetch('/api/simulate-packet/');
-            const data = await response.json();
-            
-            // Create a visual packet animation
-            createPacketAnimation(data.status === 'buffered' ? 'B' : 'A');
-            
-            if (data.status === 'buffered') {
-                updateState();
-            }
-        } catch (err) {
-            console.error("Packet simulation failed:", err);
+    // ── Satellite icons ─────────────────────────────────────
+    function drawSat(x, y, label, rssi, elev, isActive, isCand, alpha) {
+        ctx.save();
+        ctx.globalAlpha = alpha;
+
+        // Glow ring for active
+        if (isActive) {
+            ctx.beginPath();
+            ctx.arc(x, y, 28, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(34,197,94,.10)';
+            ctx.fill();
         }
+
+        // Satellite body
+        ctx.beginPath();
+        ctx.arc(x, y, 20, 0, Math.PI * 2);
+        ctx.fillStyle = '#0f172a';
+        ctx.strokeStyle = isActive ? '#22c55e' : (isCand ? '#f59e0b' : '#475569');
+        ctx.lineWidth = 2.5;
+        ctx.fill(); ctx.stroke();
+
+        // Satellite emoji
+        ctx.font = '18px serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('🛰️', x, y);
+
+        // Solar panels (visual detail)
+        ctx.fillStyle = isActive ? '#22c55e' : '#475569';
+        ctx.fillRect(x - 36, y - 4, 12, 8);
+        ctx.fillRect(x + 24, y - 4, 12, 8);
+
+        // Label
+        ctx.font = '700 11px Inter,sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = isActive ? '#22c55e' : (isCand ? '#f59e0b' : '#64748b');
+        ctx.fillText(label, x, y + 32);
+        ctx.font = '10px monospace';
+        ctx.fillStyle = '#94a3b8';
+        ctx.fillText(`${rssi} dB  ${Math.round(elev)}°`, x, y + 44);
+
+        ctx.restore();
     }
 
-    function createPacketAnimation(target) {
-        const diagram = document.getElementById('diagram');
-        const packet = document.createElement('div');
-        packet.className = 'signal-packet';
-        diagram.appendChild(packet);
+    const satAAlpha = handoverDone ? 0.3 : 1.0;
+    const satBActive = handoverDone;
+    drawSat(satA.x, satA.y, 'SAT A (Active)', satA.rssi, satA.elev, !handoverDone, false, satAAlpha);
+    drawSat(satB.x, satB.y, 'SAT B (Candidate)', satB.rssi, satB.elev, satBActive, !satBActive, 1.0);
 
-        const startX = diagram.offsetWidth / 2;
-        const startY = 60;
-        
-        const endX = target === 'A' ? 140 : (diagram.offsetWidth - 140);
-        const endY = diagram.offsetHeight - 80;
+    // ── Ground stations ──────────────────────────────────────
+    function drawGS(x, y, label) {
+        ctx.beginPath();
+        ctx.arc(x, y, 26, 0, Math.PI * 2);
+        ctx.fillStyle = '#0b1828';
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 2.5;
+        ctx.shadowBlur = 20; ctx.shadowColor = '#38bdf8';
+        ctx.fill(); ctx.stroke();
+        ctx.shadowBlur = 0;
+        ctx.font = '22px serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('📡', x, y);
 
-        packet.style.left = startX + 'px';
-        packet.style.top = startY + 'px';
+        ctx.font = '700 11px Inter,sans-serif';
+        ctx.fillStyle = '#38bdf8';
+        ctx.fillText(label, x, y + 38);
+    }
+    drawGS(gs1X, gs1Y, 'GS-A');
+    drawGS(gs2X, gs2Y, 'GS-B');
 
-        const animation = packet.animate([
-            { left: startX + 'px', top: startY + 'px', opacity: 1 },
-            { left: endX + 'px', top: endY + 'px', opacity: 0 }
-        ], {
-            duration: 800,
-            easing: 'linear'
-        });
+    // ── LEGEND / overlay ──────────────────────────────────
+    ctx.font = '11px Inter,sans-serif';
+    ctx.fillStyle = '#22c55e';
+    ctx.textAlign = 'left';
+    ctx.fillText('── Active link (data flowing)', 14, H - 14);
+    ctx.fillStyle = '#f59e0b';
+    ctx.fillText('- - Candidate link (LSTM monitored)', 14, H - 28);
 
-        animation.onfinish = () => packet.remove();
+    // ── Handover flash overlay ──────────────────────────────
+    if (handoverActive && hoProgress < 1) {
+        ctx.save();
+        ctx.globalAlpha = 0.07 * Math.sin(simTime * 8);
+        ctx.fillStyle = '#f59e0b';
+        ctx.fillRect(0, 0, W, H);
+        ctx.restore();
+
+        ctx.save();
+        ctx.font = 'bold 18px Inter,sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#f59e0b';
+        ctx.shadowBlur = 20; ctx.shadowColor = '#f59e0b';
+        ctx.fillText('⚡ HANDOVER IN PROGRESS — BUFFER ACTIVE', W / 2, H / 2);
+        ctx.restore();
     }
 
-    function toggleAutoSim() {
-        isAutoSim = !isAutoSim;
-        const btn = document.getElementById('btn-auto');
-        
-        if (isAutoSim) {
-            btn.innerText = "Disable Auto-Sim";
-            btn.className = "btn btn-primary";
-            autoSimInterval = setInterval(updateState, 1000);
-            packetSimInterval = setInterval(simulatePacket, 300);
+    if (handoverDone && simTime < HO_END + 4) {
+        ctx.save();
+        ctx.font = 'bold 16px Inter,sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#22c55e';
+        ctx.shadowBlur = 16; ctx.shadowColor = '#22c55e';
+        ctx.fillText('✅ HANDOVER COMPLETE — ZERO PACKETS LOST', W / 2, H / 2);
+        ctx.restore();
+    }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  PACKET ANIMATION
+// ═══════════════════════════════════════════════════════════
+function spawnPacket(satA, satB) {
+    const gs1X = canvas.width * 0.3, gs1Y = canvas.height - 72;
+    const gs2X = canvas.width * 0.7, gs2Y = canvas.height - 72;
+    
+    if (!handoverActive && !handoverDone) {
+        // Sat A to GS-A
+        packets.push({ x: satA.x, y: satA.y, tx: gs1X, ty: gs1Y, sx: satA.x, sy: satA.y, prog: 0, speed: 0.012 + Math.random()*0.006, alpha: 1, type: 'normal' });
+    } else if (handoverActive && !handoverDone) {
+        // Sat A to GS-B (buffering)
+        packets.push({ x: satA.x, y: satA.y, tx: gs2X, ty: gs2Y, sx: satA.x, sy: satA.y, prog: 0, speed: 0.012 + Math.random()*0.006, alpha: 1, type: 'buffered' });
+    } else if (handoverDone) {
+        // Sat B to GS-A
+        packets.push({ x: satB.x, y: satB.y, tx: gs1X, ty: gs1Y, sx: satB.x, sy: satB.y, prog: 0, speed: 0.012 + Math.random()*0.006, alpha: 1, type: 'normal' });
+    }
+}
+
+function updatePackets() {
+    for (let i = packets.length - 1; i >= 0; i--) {
+        const p = packets[i];
+        p.prog += p.speed * simSpeed;
+        p.x = p.sx + (p.tx - p.sx) * p.prog;
+        p.y = p.sy + (p.ty - p.sy) * p.prog;
+        if (p.prog >= 1) {
+            if (p.type === 'buffered') bufferPkts++;
+            packets.splice(i, 1);
+        }
+        else if (p.prog > 0.85) p.alpha = (1 - p.prog) / 0.15;
+    }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  MAIN LOOP
+// ═══════════════════════════════════════════════════════════
+function loop(ts) {
+    if (!running) return;
+
+    const dt = lastTs ? Math.min((ts - lastTs) / 1000, 0.1) : 0;
+    lastTs = ts;
+    simTime += dt * simSpeed;
+
+    const satA = getSatA(simTime);
+    const satB = getSatB(simTime);
+
+    // Spawn packets
+    if (simTime - lastPktTime > PKT_RATE / simSpeed) {
+        lastPktTime = simTime;
+        spawnPacket(satA, satB);
+    }
+
+    // Handover management
+    if ((simTime >= HO_TIME || manualHO) && !handoverActive && !handoverDone) {
+        handoverActive = true;
+        bufferPkts = 0;
+    }
+    if (handoverActive && simTime >= HO_END && !handoverDone) {
+        handoverDone   = true;
+        handoverActive = false;
+        packetsSaved  += bufferPkts;
+        forwardPacketsActive = true;
+        forwardPacketsLeft = bufferPkts;
+        bufferPkts = 0;
+        manualHO       = false;
+    }
+
+    // Process Forwarding Packets from GS-B to GS-A
+    if (forwardPacketsActive && (simTime - lastFwdTime > (PKT_RATE / simSpeed) * 0.4)) {
+        lastFwdTime = simTime;
+        const gs1X = canvas.width * 0.3, gs1Y = canvas.height - 72;
+        const gs2X = canvas.width * 0.7, gs2Y = canvas.height - 72;
+        packets.push({ x: gs2X, y: gs2Y, tx: gs1X, ty: gs1Y, sx: gs2X, sy: gs2Y, prog: 0, speed: 0.02 + Math.random()*0.005, alpha: 1, type: 'forward' });
+        forwardPacketsLeft--;
+        if (forwardPacketsLeft <= 0) forwardPacketsActive = false;
+    }
+
+    // Reset cycle
+    if (simTime >= CYCLE + 5) {
+        simTime        = 0;
+        handoverActive = false;
+        handoverDone   = false;
+        manualHO       = false;
+        bufferPkts     = 0;
+        packets        = [];
+        lastPktTime    = 0;
+        forwardPacketsActive = false;
+        forwardPacketsLeft = 0;
+        lastFwdTime = 0;
+    }
+
+    updatePackets();
+    draw(satA, satB);
+    updateUI(satA, satB);
+    updateSteps();
+
+    rafId = requestAnimationFrame(loop);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  UI UPDATES
+// ═══════════════════════════════════════════════════════════
+function updateUI(satA, satB) {
+    const activeSat  = handoverDone ? satB : satA;
+    const candSat    = handoverDone ? satA : satB;
+
+    // Try to use real API data if available, otherwise use sim data
+    const curr = apiData?.satellites?.find(s => s.role === 'current');
+    const cand = apiData?.satellites?.find(s => s.role === 'candidate');
+    const conf = apiData ? parseFloat(apiData.confidence) : 0;
+    const dec  = apiData?.decision ?? (handoverActive ? 'HANDOVER_STARTED' : handoverDone ? 'HANDOVER_COMPLETED' : 'NO_ACTION');
+
+    document.getElementById('sc-curr').textContent      = curr?.name ?? 'SAT A (Active)';
+    document.getElementById('sc-curr-rssi').textContent = curr?.rssi_db ?? activeSat.rssi;
+    document.getElementById('sc-curr-elev').textContent = curr?.elevation ?? Math.round(activeSat.elev);
+    document.getElementById('sc-cand').textContent      = cand?.name ?? 'SAT B (Candidate)';
+    document.getElementById('sc-cand-rssi').textContent = cand?.rssi_db ?? candSat.rssi;
+    document.getElementById('sc-cand-elev').textContent = cand?.elevation ?? Math.round(candSat.elev);
+    document.getElementById('sc-conf').textContent      = isNaN(conf) ? '—' : conf.toFixed(1) + ' %';
+    document.getElementById('conf-bar').style.width     = Math.min(conf, 100) + '%';
+    document.getElementById('sc-dec').textContent       = dec;
+    document.getElementById('sc-dec').style.color       = decColor(dec);
+    document.getElementById('sc-buf').textContent       = (apiData?.buffer_size ?? bufferPkts) + ' pkts';
+    document.getElementById('sc-saved').textContent     = packetsSaved;
+
+    // Status badge
+    const badge = document.getElementById('sbadge');
+    if (handoverActive) {
+        badge.textContent = '🔁 Handover In Progress'; badge.className = 'sbadge sb-handover';
+    } else if (running && activeSat.elev > 5) {
+        badge.textContent = '✅ Active — ML Monitoring'; badge.className = 'sbadge sb-active';
+    } else {
+        badge.textContent = 'System Idle'; badge.className = 'sbadge sb-idle';
+    }
+
+    document.getElementById('btn-ho').disabled = handoverActive || handoverDone;
+}
+
+function decColor(d) {
+    if (d === 'HANDOVER_STARTED')   return '#f59e0b';
+    if (d === 'HANDOVER_COMPLETED') return '#22c55e';
+    if (d === 'NO_CANDIDATE')       return '#ef4444';
+    return '#94a3b8';
+}
+
+function updateSteps() {
+    const p = simTime / CYCLE;
+    // Step 1 active from 0%, step 2 from 10%, step 3 from 25%, step 4 at handover, step 5 after
+    const thresholds = [0, 0.08, 0.22, HO_TIME / CYCLE, (HO_END + 2) / CYCLE];
+    thresholds.forEach((t, i) => {
+        const el = document.getElementById(`step-${i + 1}`);
+        if (!el) return;
+        const next = thresholds[i + 1] ?? 9999;
+        if (p >= (HO_END + 2) / CYCLE && i < 4) {
+            el.className = 'step done';
+        } else if (p >= t && p < next) {
+            el.className = 'step active';
+        } else if (p >= t) {
+            el.className = 'step done';
         } else {
-            btn.innerText = "Enable Auto-Sim";
-            btn.className = "btn btn-danger";
-            clearInterval(autoSimInterval);
-            clearInterval(packetSimInterval);
+            el.className = 'step';
         }
-    }
+    });
+}
 
-    // Initial update and poll
-    updateState();
-    setInterval(updateState, 1000);
+// ═══════════════════════════════════════════════════════════
+//  CONTROLS
+// ═══════════════════════════════════════════════════════════
+function toggleSim() {
+    running = !running;
+    const btn = document.getElementById('btn-play');
+    if (running) {
+        lastTs = null;
+        btn.textContent = '⏸ Pause';
+        btn.className   = 'btn btn-red';
+        document.getElementById('btn-ho').disabled = false;
+        rafId = requestAnimationFrame(loop);
+    } else {
+        btn.textContent = '▶ Resume';
+        btn.className   = 'btn btn-green';
+        cancelAnimationFrame(rafId);
+    }
+}
+
+function forceHandover() {
+    manualHO = true;
+    document.getElementById('btn-ho').disabled = true;
+}
+
+function resetSim() {
+    running        = false;
+    cancelAnimationFrame(rafId);
+    simTime        = 0;
+    handoverActive = false;
+    handoverDone   = false;
+    manualHO       = false;
+    bufferPkts     = 0;
+    packets        = [];
+    lastPktTime    = 0;
+    packetsSaved   = 0;
+    forwardPacketsActive = false;
+    forwardPacketsLeft = 0;
+    lastFwdTime = 0;
+    lastTs         = null;
+    document.getElementById('btn-play').textContent = '▶ Start Simulation';
+    document.getElementById('btn-play').className   = 'btn btn-green';
+    document.getElementById('btn-ho').disabled      = true;
+    document.querySelectorAll('.step').forEach(s => s.className = 'step');
+    const satA = getSatA(0), satB = getSatB(0);
+    draw(satA, satB);
+    updateUI(satA, satB);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  API SYNC (background, non-blocking)
+// ═══════════════════════════════════════════════════════════
+async function fetchAPI() {
+    try {
+        const res = await fetch('/api/satellite-state/');
+        apiData = await res.json();
+    } catch {}
+}
+setInterval(fetchAPI, 3000);
+fetchAPI();
+
+// ── Init ───────────────────────────────────────────────────
+resetSim();
 </script>
 {% endblock %}
