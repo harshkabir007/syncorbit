@@ -2,101 +2,284 @@
 {% block title %}Satellite Map | SyncOrbit{% endblock %}
 
 {% block content %}
-<h1>🗺️ Real-Time Satellite Map</h1>
-
-<div id="map" style="height: 600px; margin-top: 20px;"></div>
-
 <!-- Leaflet CSS -->
-<link
-  rel="stylesheet"
-  href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-/>
-
-<!-- Leaflet JS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
+<style>
+  .map-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .map-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .map-title { margin: 0; font-size: 1.5rem; }
+
+  /* ── Legend ── */
+  .map-legend {
+    display: flex;
+    gap: 20px;
+    align-items: center;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 10px;
+    padding: 10px 18px;
+    flex-wrap: wrap;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem;
+    color: #cbd5e1;
+  }
+  .legend-dot {
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.25);
+    flex-shrink: 0;
+  }
+
+  /* ── Satellite counters ── */
+  .sat-counters {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .sat-count-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 8px;
+    padding: 6px 14px;
+    font-size: 0.85rem;
+  }
+  .sat-count-badge .count-val {
+    font-size: 1.1rem;
+    font-weight: 700;
+  }
+
+  /* ── Map container ── */
+  #map {
+    height: 580px;
+    border-radius: 14px;
+    border: 1px solid rgba(255,255,255,0.1);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  }
+
+  /* ── Leaflet popup dark theme ── */
+  .leaflet-popup-content-wrapper {
+    background: #1e293b !important;
+    color: #e5e7eb !important;
+    border: 1px solid rgba(255,255,255,0.15) !important;
+    border-radius: 10px !important;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5) !important;
+  }
+  .leaflet-popup-tip { background: #1e293b !important; }
+  .leaflet-popup-content b { color: #38bdf8; }
+  .role-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    margin-top: 2px;
+  }
+  .badge-current   { background: rgba(34,197,94,0.2);  color: #22c55e; }
+  .badge-candidate { background: rgba(250,204,21,0.2);  color: #facc15; }
+  .badge-available { background: rgba(148,163,184,0.2); color: #94a3b8; }
+</style>
+
+<div class="map-wrapper">
+
+  <!-- Header row -->
+  <div class="map-header">
+    <h1 class="map-title">🗺️ Real-Time Satellite Map</h1>
+
+    <!-- Live counters -->
+    <div class="sat-counters">
+      <div class="sat-count-badge">
+        <span style="width:10px;height:10px;border-radius:50%;background:#22c55e;display:inline-block;"></span>
+        <span>Current</span>
+        <span class="count-val" id="cnt-current" style="color:#22c55e;">—</span>
+      </div>
+      <div class="sat-count-badge">
+        <span style="width:10px;height:10px;border-radius:50%;background:#facc15;display:inline-block;"></span>
+        <span>Candidate</span>
+        <span class="count-val" id="cnt-candidate" style="color:#facc15;">—</span>
+      </div>
+      <div class="sat-count-badge">
+        <span style="width:10px;height:10px;border-radius:50%;background:#94a3b8;display:inline-block;"></span>
+        <span>Available</span>
+        <span class="count-val" id="cnt-available" style="color:#94a3b8;">—</span>
+      </div>
+      <div class="sat-count-badge">
+        <span>Total visible</span>
+        <span class="count-val" id="cnt-total" style="color:#38bdf8;">—</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Legend -->
+  <div class="map-legend">
+    <div class="legend-item">
+      <div class="legend-dot" style="background:#22c55e; box-shadow:0 0 8px #22c55e;"></div>
+      <span><b style="color:#22c55e;">Current</b> — active handover link</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background:#facc15; box-shadow:0 0 8px #facc15;"></div>
+      <span><b style="color:#facc15;">Candidate</b> — LSTM-selected next target</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background:#94a3b8;"></div>
+      <span><b style="color:#94a3b8;">Available</b> — visible, not yet selected</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background:#38bdf8;"></div>
+      <span><b style="color:#38bdf8;">Ground Stations</b></span>
+    </div>
+  </div>
+
+  <!-- Map -->
+  <div id="map"></div>
+
+</div>
+
 <script>
-    // --------------------------------------------------
-    // MAP INIT
-    // --------------------------------------------------
-    const map = L.map('map').setView([28.6139, 77.2090], 3);
+  // ──────────────────────────────────────────────────
+  // MAP INIT
+  // ──────────────────────────────────────────────────
+  const map = L.map('map').setView([20, 78], 3);
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenStreetMap contributors'
-    }).addTo(map);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '© OpenStreetMap, © CartoDB',
+    subdomains: 'abcd',
+    maxZoom: 19
+  }).addTo(map);
 
-    // --------------------------------------------------
-    // GROUND STATIONS
-    // --------------------------------------------------
-    const gsA = L.marker([28.6139, 77.2090])
-        .addTo(map)
-        .bindPopup("📡 Ground Station A");
+  // ──────────────────────────────────────────────────
+  // GROUND STATIONS
+  // ──────────────────────────────────────────────────
+  const gsIcon = L.divIcon({
+    html: `<div style="font-size:22px;line-height:1;">📡</div>`,
+    iconSize: [28, 28], iconAnchor: [14, 14], className: ''
+  });
 
-    const gsB = L.marker([19.0760, 72.8777])
-        .addTo(map)
-        .bindPopup("📡 Ground Station B");
+  L.marker([28.6139, 77.2090], {icon: gsIcon})
+    .addTo(map)
+    .bindPopup('<b style="color:#38bdf8;">Ground Station A</b><br>New Delhi, India');
 
-    // Coverage circles
-    const gsACoverage = L.circle([28.6139, 77.2090], {
-        radius: 1200000,
-        color: "green",
-        fillOpacity: 0.05
-    }).addTo(map);
+  L.marker([19.0760, 72.8777], {icon: gsIcon})
+    .addTo(map)
+    .bindPopup('<b style="color:#38bdf8;">Ground Station B</b><br>Mumbai, India');
 
-    const gsBCoverage = L.circle([19.0760, 72.8777], {
-        radius: 1200000,
-        color: "orange",
-        fillOpacity: 0.05
-    }).addTo(map);
+  // Coverage footprints
+  L.circle([28.6139, 77.2090], {
+    radius: 1500000, color: '#22c55e', weight: 1,
+    fillColor: '#22c55e', fillOpacity: 0.04
+  }).addTo(map);
 
-    // --------------------------------------------------
-    // SATELLITE MARKERS
-    // --------------------------------------------------
-    let satelliteMarkers = [];
+  L.circle([19.0760, 72.8777], {
+    radius: 1500000, color: '#facc15', weight: 1,
+    fillColor: '#facc15', fillOpacity: 0.04
+  }).addTo(map);
 
-    function getColor(role) {
-        if (role === "current") return "#22c55e";   // 🟢 green
-        if (role === "candidate") return "#facc15"; // 🟡 yellow
-        return "#3b82f6";                            // 🔵 blue
-    }
+  // ──────────────────────────────────────────────────
+  // SATELLITE MARKER STYLES
+  // ──────────────────────────────────────────────────
+  function roleStyle(role) {
+    if (role === 'current') return {
+      color: '#22c55e', fillColor: '#22c55e',
+      radius: 12, weight: 3, fillOpacity: 0.92,
+      pane: 'markerPane'   // renders on top
+    };
+    if (role === 'candidate') return {
+      color: '#facc15', fillColor: '#facc15',
+      radius: 10, weight: 2.5, fillOpacity: 0.88
+    };
+    // available
+    return {
+      color: '#94a3b8', fillColor: '#475569',
+      radius: 6, weight: 1.5, fillOpacity: 0.70
+    };
+  }
 
-    function loadSatellites() {
-        fetch("/api/satellite-state/")
-            .then(res => res.json())
-            .then(data => {
+  function roleBadgeHtml(role) {
+    const cls = { current: 'badge-current', candidate: 'badge-candidate', available: 'badge-available' };
+    return `<span class="role-badge ${cls[role] || 'badge-available'}">${role}</span>`;
+  }
 
-                // Remove old markers
-                satelliteMarkers.forEach(m => map.removeLayer(m));
-                satelliteMarkers = [];
+  // ──────────────────────────────────────────────────
+  // DATA LOADING & RENDERING
+  // ──────────────────────────────────────────────────
+  let satelliteMarkers = [];
 
-                data.satellites.forEach(sat => {
-                    const color = getColor(sat.role);
+  function loadSatellites() {
+    fetch('/api/satellite-state/')
+      .then(r => r.json())
+      .then(data => {
 
-                    const marker = L.circleMarker(
-                        [sat.lat, sat.lon],
-                        {
-                            radius: 8,
-                            color: color,
-                            fillColor: color,
-                            fillOpacity: 0.9,
-                            weight: 2
-                        }
-                    )
-                    .addTo(map)
-                    .bindPopup(`
-                        <b>${sat.name}</b><br>
-                        Role: ${sat.role}<br>
-                        RSSI: ${sat.rssi_db} dB<br>
-                        Elevation: ${sat.elevation}°
-                    `);
+        // Remove old markers
+        satelliteMarkers.forEach(m => map.removeLayer(m));
+        satelliteMarkers = [];
 
-                    satelliteMarkers.push(marker);
-                });
-            });
-    }
+        // Counters
+        let counts = { current: 0, candidate: 0, available: 0 };
 
-    // Initial + periodic update
-    loadSatellites();
-    setInterval(loadSatellites, 4000);
+        // Sort so available renders first (under current/candidate)
+        const sorted = [...data.satellites].sort((a, b) => {
+          const order = { current: 3, candidate: 2, available: 1 };
+          return (order[a.role] || 1) - (order[b.role] || 1);
+        });
+
+        sorted.forEach(sat => {
+          const role  = sat.role || 'available';
+          const style = roleStyle(role);
+          counts[role] = (counts[role] || 0) + 1;
+
+          const popup = `
+            <div style="min-width:160px;">
+              <b>${sat.name}</b><br>
+              ${roleBadgeHtml(role)}
+              <hr style="border-color:rgba(255,255,255,0.1);margin:6px 0;">
+              <span style="color:#94a3b8;">RSSI</span> <b>${sat.rssi_db ?? '—'} dB</b><br>
+              <span style="color:#94a3b8;">Elevation</span> <b>${sat.elevation ?? '—'}°</b><br>
+              <span style="color:#94a3b8;">Altitude</span> <b>${sat.alt_km ?? '—'} km</b>
+            </div>`;
+
+          const marker = L.circleMarker([sat.lat, sat.lon], style)
+            .addTo(map)
+            .bindPopup(popup);
+
+          // Pulse ring for current satellite
+          if (role === 'current') {
+            marker.setStyle({ className: 'current-pulse' });
+          }
+
+          satelliteMarkers.push(marker);
+        });
+
+        // Update counters in UI
+        document.getElementById('cnt-current').textContent   = counts.current   || 0;
+        document.getElementById('cnt-candidate').textContent = counts.candidate || 0;
+        document.getElementById('cnt-available').textContent = counts.available || 0;
+        document.getElementById('cnt-total').textContent     = data.satellites.length;
+      })
+      .catch(err => console.error('Map update failed:', err));
+  }
+
+  // Initial load + polling every 3 seconds
+  loadSatellites();
+  setInterval(loadSatellites, 3000);
 </script>
 {% endblock %}

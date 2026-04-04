@@ -1,4 +1,4 @@
-from django.conf import settings
+from handover.runtime import get_mode
 import random
 import time
 import numpy as np
@@ -16,8 +16,7 @@ class DemoPacketSource:
         if self.prev_rssi is None:
             rssi = random.uniform(-70, -55)
         else:
-            # Reduced jitter from (-2.5, 2.5) to (-0.5, 0.5) for stability
-            rssi = self.prev_rssi + random.uniform(-0.5, 0.5)
+            rssi = self.prev_rssi + random.uniform(-2.5, 2.5)
 
         rssi = max(-90, min(-45, rssi))
 
@@ -73,29 +72,14 @@ class RtlSdrPacketSource:
         """
         Returns REAL RSSI packet usable by ML + dashboard
         """
-        if self.sdr is None:
-            # Fallback jitter for testing without hardware
-            return {
-                "type": "RTL_SDR_FALLBACK",
-                "rssi_db": round(random.uniform(-82, -78), 2),
-                "timestamp": time.time(),
-            }
+        samples = self.sdr.read_samples(4096)
+        rssi = iq_to_rssi_db(samples)
 
-        try:
-            samples = self.sdr.read_samples(4096)
-            rssi = iq_to_rssi_db(samples)
-
-            return {
-                "type": "RTL_SDR",
-                "rssi_db": rssi,
-                "timestamp": time.time(),
-            }
-        except Exception:
-            return {
-                "type": "RTL_SDR_ERROR",
-                "rssi_db": round(random.uniform(-90, -85), 2),
-                "timestamp": time.time(),
-            }
+        return {
+            "type": "RTL_SDR",
+            "rssi_db": rssi,
+            "timestamp": time.time(),
+        }
 
     def get_spectrum(self, fft_size=1024):
         samples = self.sdr.read_samples(fft_size)
@@ -114,10 +98,8 @@ _rtl = None
 
 def get_packet_source():
     global _rtl
-    from handover.runtime import get_mode
-    mode = get_mode()
 
-    if mode == "REAL":
+    if get_mode() == "REAL":
         if _rtl is None:
             _rtl = RtlSdrPacketSource()
         return _rtl

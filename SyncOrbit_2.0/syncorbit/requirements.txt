@@ -1,0 +1,7 @@
+Django==5.2.10
+joblib==1.5.3
+numpy==2.4.3
+pyrtlsdr==0.4.0
+scikit-learn==1.8.0
+skyfield==1.54
+tensorflow-cpu==2.21.0

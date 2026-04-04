@@ -14,16 +14,37 @@ ts = load.timescale()
 _satellites = None
 
 
+import time
+import urllib.request
+
 def load_satellites():
     global _satellites
 
-    if _satellites is None:
-        if not Path(TLE_FILE).exists():
-            print("⬇️ Downloading TLEs from CelesTrak...")
-            load.download(TLE_URL, TLE_FILE)
-
-        _satellites = load.tle_file(TLE_FILE)
-        print(f"✅ Loaded {len(_satellites)} satellites")
+    file_path = Path(TLE_FILE)
+    
+    # Needs download if file doesn't exist or is older than 12 hours
+    needs_download = True
+    if file_path.exists():
+        age = time.time() - file_path.stat().st_mtime
+        if age <= 43200: # 43200 seconds = 12 hours
+            needs_download = False
+            
+    if needs_download:
+        # print("⬇️ Downloading TLEs from CelesTrak (updated every 12h)...")
+        try:
+            urllib.request.urlretrieve(TLE_URL, TLE_FILE)
+            # Re-load from modified file
+            _satellites = load.tle_file(TLE_FILE)
+            # print(f"✅ Loaded {len(_satellites)} satellites dynamically")
+        except Exception as e:
+            print(f"⚠️ Failed to download TLE: {e}")
+            if _satellites is None and file_path.exists():
+                _satellites = load.tle_file(TLE_FILE)
+    elif _satellites is None:
+        if file_path.exists():
+            _satellites = load.tle_file(TLE_FILE)
+        else:
+            print("⚠️ No TLE file exists and download skipped.")
 
     return _satellites
 
