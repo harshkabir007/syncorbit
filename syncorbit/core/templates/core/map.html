@@ -1,0 +1,102 @@
+{% extends "core/base.html" %}
+{% block title %}Satellite Map | SyncOrbit{% endblock %}
+
+{% block content %}
+<h1>🗺️ Real-Time Satellite Map</h1>
+
+<div id="map" style="height: 600px; margin-top: 20px;"></div>
+
+<!-- Leaflet CSS -->
+<link
+  rel="stylesheet"
+  href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+/>
+
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+    // --------------------------------------------------
+    // MAP INIT
+    // --------------------------------------------------
+    const map = L.map('map').setView([28.6139, 77.2090], 3);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    // --------------------------------------------------
+    // GROUND STATIONS
+    // --------------------------------------------------
+    const gsA = L.marker([28.6139, 77.2090])
+        .addTo(map)
+        .bindPopup("📡 Ground Station A");
+
+    const gsB = L.marker([19.0760, 72.8777])
+        .addTo(map)
+        .bindPopup("📡 Ground Station B");
+
+    // Coverage circles
+    const gsACoverage = L.circle([28.6139, 77.2090], {
+        radius: 1200000,
+        color: "green",
+        fillOpacity: 0.05
+    }).addTo(map);
+
+    const gsBCoverage = L.circle([19.0760, 72.8777], {
+        radius: 1200000,
+        color: "orange",
+        fillOpacity: 0.05
+    }).addTo(map);
+
+    // --------------------------------------------------
+    // SATELLITE MARKERS
+    // --------------------------------------------------
+    let satelliteMarkers = [];
+
+    function getColor(role) {
+        if (role === "current")   return "#22c55e";  // 🟢 green
+        if (role === "candidate") return "#facc15";  // 🟡 yellow
+        return "#3b82f6";                             // 🔵 blue (available)
+    }
+
+    function loadSatellites() {
+        fetch("/api/satellite-state/")
+            .then(res => res.json())
+            .then(data => {
+
+                // Remove old markers
+                satelliteMarkers.forEach(m => map.removeLayer(m));
+                satelliteMarkers = [];
+
+                data.satellites.forEach(sat => {
+                    const color = getColor(sat.role);
+
+                    const marker = L.circleMarker(
+                        [sat.lat, sat.lon],
+                        {
+                            radius: 8,
+                            color: color,
+                            fillColor: color,
+                            fillOpacity: 0.9,
+                            weight: 2
+                        }
+                    )
+                    .addTo(map)
+                    .bindPopup(`
+                        <b>${sat.name}</b><br>
+                        Role: ${sat.role}<br>
+                        RSSI: ${sat.rssi_db} dB<br>
+                        Elevation: ${sat.elevation}°
+                    `);
+
+                    satelliteMarkers.push(marker);
+                });
+            });
+    }
+
+    // Initial + periodic update
+    loadSatellites();
+    setInterval(loadSatellites, 4000);
+</script>
+{% endblock %}
